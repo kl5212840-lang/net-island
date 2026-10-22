@@ -7,6 +7,11 @@ enum NotchSectionPagingTests {
     static func run(_ suite: TestSuite) {
         suite.expect(NotchNavigationPosition.resolved("invalid") == .top, "invalid imported arrow position falls back to top")
         for height: CGFloat in [160, 260, 400] {
+            let inset = NotchSectionNavigation.sideInset(height: height)
+            suite.expect(inset > NotchLayout.shoulder(height: height) && inset + 24 <= NotchLayout.horizontalInset + 16,
+                         "navigation target clears the silhouette shoulder without covering page content")
+        }
+        for height: CGFloat in [160, 260, 400] {
             let positions = NotchNavigationPosition.allCases.map { $0.topInset(pageTop: 60, height: height) }
             suite.expect(positions == positions.sorted() && positions.first! >= 60 && positions.last! + 44 <= height - 28,
                          "all arrow positions stay below the header and above the lower curve at height \(height)")

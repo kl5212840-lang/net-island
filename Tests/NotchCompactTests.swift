@@ -144,6 +144,7 @@ enum NotchCompactTests {
     struct Page {
         var music = Music()
         var showsDetail = false
+        var navigationContentInset: CGFloat = 0
         var service = NotchService()
         var controls: [NotchControlItem] = [.music, .volume, .brightness, .timer]
         var timerMode = NotchTimerMode.timer
@@ -790,6 +791,10 @@ enum NotchCompactTests {
         page.service.selected = .controls
         page.service.contentSize = CGSize(width: 424, height: 96)
         suite.expect(page.pageSize == page.service.contentSize, "a single home card does not introduce unnecessary scrolling")
+        page.navigationContentInset = 16
+        suite.expect(page.pageSize.width == page.service.contentSize.width - 32,
+                     "page layout reserves both navigation gutters instead of drawing behind the arrows")
+        page.navigationContentInset = 0
         page.showsDetail = true
         suite.expect(page.pageSize == page.service.contentSize, "vertical detail pages preserve their existing layout")
 

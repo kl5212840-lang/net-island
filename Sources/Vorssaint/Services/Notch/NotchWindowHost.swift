@@ -1798,6 +1798,22 @@ final class NotchActivationButton: NSButton {
     @objc func invoke() { activate?() }
 }
 
-private final class NotchHostingView: NSHostingView<AnyView> {
+final class NotchHostingView: NSHostingView<AnyView> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func layout() {
+        super.layout()
+        suppressScrollers(in: self)
+    }
+
+    /// AppKit can recreate legacy scrollers for the system's Always setting
+    /// after SwiftUI applies scrollIndicators(.hidden). Enforce the island's
+    /// choice on its native scroll views as they lay out; scrolling survives.
+    private func suppressScrollers(in view: NSView) {
+        if let scroll = view as? NSScrollView {
+            if scroll.hasVerticalScroller { scroll.hasVerticalScroller = false }
+            if scroll.hasHorizontalScroller { scroll.hasHorizontalScroller = false }
+        }
+        for child in view.subviews { suppressScrollers(in: child) }
+    }
 }

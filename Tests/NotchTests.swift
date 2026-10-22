@@ -40,6 +40,14 @@ enum NotchTests {
             }
         }
         let sanitized = NotchNetworkStyle(fontSize: .nan, wingWidth: .infinity, verticalOffset: -.infinity)
+        let colors = NotchNetworkStyle(tint: "custom", opacity: 1, downloadColor: " cdb5ff ", uploadColor: "#FFD27D", colorScope: "arrows")
+        suite.expect(colors.downloadColor == "#CDB5FF" && colors.uploadColor == "#FFD27D" && colors.colorScope == "arrows"
+                     && colors.minimumColorContrast > 4.5, "custom network colors round-trip in sRGB and keep independent direction colors")
+        let dark = NotchNetworkStyle(tint: "custom", downloadColor: "000000", uploadColor: "000000")
+        suite.expect(dark.minimumColorContrast == 1, "dark user colors are preserved and trigger a contrast hint instead of silently changing")
+        let invalidColors = NotchNetworkStyle(downloadColor: "invalid", uploadColor: "", colorScope: "invalid")
+        suite.expect(invalidColors.downloadColor == "#B3D1FF" && invalidColors.uploadColor == "#73F2FF" && invalidColors.colorScope == "all",
+                     "invalid imported color values fall back safely")
         suite.expect(sanitized == NotchNetworkStyle(), "non-finite imported layout values use safe defaults")
         let english = Locale(identifier: "en_US")
         suite.expect(NotchNetworkFormat.reading(45 * 1024, fullUnits: true, locale: english) == "45.0 KB/s",

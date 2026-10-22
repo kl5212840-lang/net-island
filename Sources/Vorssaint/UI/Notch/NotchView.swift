@@ -270,6 +270,13 @@ struct NotchView: View {
     }
 
     private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
+    private var showsSectionArrows: Bool {
+        service.modules.count > 1 && !service.showingSections && !showsDetail && !service.showingCommandBar
+    }
+    private var navigationContentInset: CGFloat { showsSectionArrows ? 16 : 0 }
+    private var contentViewportSize: CGSize {
+        CGSize(width: max(0, service.contentSize.width - navigationContentInset * 2), height: service.contentSize.height)
+    }
 
     /// The open island names no page. Its top row holds the page's own
     /// controls, beside the camera where they fit, as a phone's island wraps
@@ -280,8 +287,15 @@ struct NotchView: View {
         let geometry = service.expandedGeometry
         let band = NotchBand(geometry: geometry, contentWidth: service.contentSize.width)
         let wraps = geometry.pageTop == .wrapsCamera
-        return page
-            .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
+        return ZStack(alignment: .top) {
+                page.id(service.selected).transition(.opacity)
+            }
+            .transaction(value: service.selected) { transaction in
+                transaction.disablesAnimations = false
+                transaction.animation = reduceMotion ? nil : .easeInOut(duration: 0.20)
+            }
+            .frame(width: contentViewportSize.width, height: contentViewportSize.height, alignment: .top)
+            .padding(.horizontal, navigationContentInset)
             .clipShape(NotchPageClip(top: geometry.pageTopInset))
             // With no title on screen, VoiceOver still names the page.
             .accessibilityElement(children: .contain)
@@ -311,16 +325,15 @@ struct NotchView: View {
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
             .overlay(alignment: .top) {
-                if service.modules.count > 1, !service.showingSections, !showsDetail,
-                   !service.showingCommandBar {
-                    // Dedicated 28-point gutters: neither page content nor a
-                    // system "always show scrollbars" preference can cover these.
+                if showsSectionArrows {
+                    // The hanging silhouette has 14-point shoulders inside
+                    // its bounding box; controls must clear that real edge.
                     HStack(spacing: 0) {
                         sectionArrow(forward: false)
                         Spacer(minLength: 0)
                         sectionArrow(forward: true)
                     }
-                    .padding(.horizontal, 2)
+                    .padding(.horizontal, NotchSectionNavigation.sideInset(height: service.expandedSize.height))
                     .padding(.top, NotchNavigationPosition.resolved(navigationPosition)
                         .topInset(pageTop: NotchSectionNavigation.headerBoundary(in: geometry),
                                   height: service.expandedSize.height))
@@ -369,10 +382,9 @@ struct NotchView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
                     .frame(width: 24, height: 44)
-                    .background(.white.opacity(0.06), in: Capsule())
                     .contentShape(Capsule())
             }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
+            .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false, highlights: false))
             .help(title).accessibilityLabel(title)
             .accessibilityIdentifier(forward ? "notch.section.next" : "notch.section.previous")
         }
@@ -505,7 +517,7 @@ struct NotchView: View {
     /// Keep each page's minimum usable layout reachable when a custom height
     /// or the display leaves less room. The outer silhouette stays unchanged.
     private var pageSize: CGSize {
-        var size = service.contentSize
+        var size = contentViewportSize
         guard !showsDetail else { return size }
         switch service.selected {
         case .controls:

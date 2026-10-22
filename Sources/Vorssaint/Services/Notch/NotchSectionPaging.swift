@@ -22,6 +22,8 @@ enum NotchNavigationPosition: String, CaseIterable {
 
 /// The checked, ordered pages form a ring; unavailable pages never enter it.
 enum NotchSectionNavigation {
+    static func sideInset(height: CGFloat) -> CGFloat { NotchLayout.shoulder(height: height) + 4 }
+
     /// A shared full-row header keeps the target still when one page has no
     /// toolbar or another wraps its controls around the camera.
     static func headerBoundary(in geometry: NotchGeometry) -> CGFloat {

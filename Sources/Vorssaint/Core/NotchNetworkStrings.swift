@@ -50,6 +50,13 @@ struct NotchNetworkStrings {
     var bold: String { text("Bold", "加粗", "粗體") }
     var color: String { text("Readout color", "读数颜色", "讀數顏色") }
     var white: String { text("White", "白色", "白色") }
+    var customColor: String { text("Custom colors", "自定义颜色", "自訂顏色") }
+    var downloadColor: String { text("Download color", "下载颜色", "下載顏色") }
+    var uploadColor: String { text("Upload color", "上传颜色", "上傳顏色") }
+    var colorScope: String { text("Apply color to", "颜色应用于", "顏色套用於") }
+    var colorAll: String { text("Arrows and numbers", "箭头与数字", "箭頭與數字") }
+    var colorArrows: String { text("Arrows only · White numbers", "仅箭头 · 数字保持白色", "僅箭頭 · 數字保持白色") }
+    var colorContrastHint: String { text("This color may be hard to read on the dark island. Increase brightness or choose a lighter color.", "当前颜色在深色岛上可能不易辨认，可以提高亮度或选择浅一些的颜色。", "目前顏色在深色島上可能不易辨認，可以提高亮度或選擇淺一些的顏色。") }
     var directionColor: String { text("Blue download · Cyan upload", "下载蓝色 · 上传青色", "下載藍色 · 上傳青色") }
     var opacity: String { text("Readout brightness", "读数明暗", "讀數明暗") }
     var alignment: String { text("Alignment within each side", "每侧读数对齐", "每側讀數對齊") }

@@ -814,6 +814,9 @@ enum DefaultsKey {
     static let notchNetworkDecimals = "notchNetworkDecimals"
     static let notchNetworkWeight = "notchNetworkWeight"
     static let notchNetworkTint = "notchNetworkTint"
+    static let notchNetworkDownloadColor = "notchNetworkDownloadColor"
+    static let notchNetworkUploadColor = "notchNetworkUploadColor"
+    static let notchNetworkColorScope = "notchNetworkColorScope"
     static let notchNetworkOpacity = "notchNetworkOpacity"
     static let notchNetworkAlignment = "notchNetworkAlignment"
     static let notchNetworkArrowGap = "notchNetworkArrowGap"
@@ -1437,6 +1440,9 @@ enum Defaults {
         DefaultsKey.notchNetworkDecimals: 1,
         DefaultsKey.notchNetworkWeight: "medium",
         DefaultsKey.notchNetworkTint: "white",
+        DefaultsKey.notchNetworkDownloadColor: "B3D1FF",
+        DefaultsKey.notchNetworkUploadColor: "73F2FF",
+        DefaultsKey.notchNetworkColorScope: "all",
         DefaultsKey.notchNetworkOpacity: 0.9,
         DefaultsKey.notchNetworkAlignment: "center",
         DefaultsKey.notchNetworkArrowGap: 3.0,

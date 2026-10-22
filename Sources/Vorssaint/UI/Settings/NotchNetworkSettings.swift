@@ -10,6 +10,9 @@ struct NotchNetworkSettings: View {
     @AppStorage(DefaultsKey.notchNetworkDecimals) private var decimals = 1
     @AppStorage(DefaultsKey.notchNetworkWeight) private var weight = "medium"
     @AppStorage(DefaultsKey.notchNetworkTint) private var tint = "white"
+    @AppStorage(DefaultsKey.notchNetworkDownloadColor) private var downloadColor = "B3D1FF"
+    @AppStorage(DefaultsKey.notchNetworkUploadColor) private var uploadColor = "73F2FF"
+    @AppStorage(DefaultsKey.notchNetworkColorScope) private var colorScope = "all"
     @AppStorage(DefaultsKey.notchNetworkOpacity) private var opacity = 0.9
     @AppStorage(DefaultsKey.notchNetworkAlignment) private var alignment = "center"
     @AppStorage(DefaultsKey.notchNetworkArrowGap) private var arrowGap = 3.0
@@ -28,9 +31,10 @@ struct NotchNetworkSettings: View {
     @AppStorage(DefaultsKey.networkSpeedUnit) private var unit = NetworkSpeedUnit.bytes
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var style: NotchNetworkStyle { .init(fontSize: fontSize, wingWidth: width, verticalOffset: offset, uploadOnLeft: uploadOnLeft, fullUnits: fullUnits,
-        decimals: decimals, weight: weight, tint: tint, opacity: opacity, alignment: alignment, arrowGap: arrowGap) }
+        decimals: decimals, weight: weight, tint: tint, opacity: opacity, alignment: alignment, arrowGap: arrowGap,
+        downloadColor: downloadColor, uploadColor: uploadColor, colorScope: colorScope) }
     private var signature: [String] {
-        [String(paused), String(fullUnits), String(decimals), weight, tint, String(opacity), alignment, String(arrowGap), String(fontSize), String(width), String(offset), String(uploadOnLeft),
+        [String(paused), String(fullUnits), String(decimals), weight, tint, downloadColor, uploadColor, colorScope, String(opacity), alignment, String(arrowGap), String(fontSize), String(width), String(offset), String(uploadOnLeft),
          String(avoidMenus), String(autoHide), String(threshold), String(delay), String(capsuleDrop)]
     }
 
@@ -50,12 +54,14 @@ struct NotchNetworkSettings: View {
                 NotchNetworkReadout(bytesPerSecond: uploadOnLeft ? 345_678 : 1_234_567, upload: uploadOnLeft,
                                     inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
                                     decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                                    opacity: style.opacity, arrowGap: style.arrowGap)
+                                    opacity: style.opacity, arrowGap: style.arrowGap,
+                                    downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
                     .frame(width: style.wingWidth - 16, alignment: style.readingAlignment)
                 NotchNetworkReadout(bytesPerSecond: uploadOnLeft ? 1_234_567 : 345_678, upload: !uploadOnLeft,
                                     inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
                                     decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                                    opacity: style.opacity, arrowGap: style.arrowGap)
+                                    opacity: style.opacity, arrowGap: style.arrowGap,
+                                    downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
                     .frame(width: style.wingWidth - 16, alignment: style.readingAlignment)
             }
             .offset(y: style.offset(in: 32))
@@ -93,9 +99,23 @@ struct NotchNetworkSettings: View {
                     }.pickerStyle(.menu)
                     Picker(text.color, selection: $tint) {
                         Text(text.white).tag("white"); Text(text.directionColor).tag("direction")
+                        Text(text.customColor).tag("custom")
                     }.pickerStyle(.menu)
+                    if tint == "custom" {
+                        ColorPicker(text.downloadColor, selection: colorBinding($downloadColor, fallback: "B3D1FF"), supportsOpacity: false)
+                        ColorPicker(text.uploadColor, selection: colorBinding($uploadColor, fallback: "73F2FF"), supportsOpacity: false)
+                    }
+                    if tint != "white" {
+                        Picker(text.colorScope, selection: $colorScope) {
+                            Text(text.colorAll).tag("all"); Text(text.colorArrows).tag("arrows")
+                        }.pickerStyle(.menu)
+                    }
                     slider(text.opacity, value: $opacity, range: 0.6...1, step: 0.05,
                            valueText: "\(Int((style.opacity * 100).rounded()))%")
+                    if style.minimumColorContrast < (colorScope == "arrows" ? 3 : 4.5) {
+                        Text(text.colorContrastHint).font(.caption).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Picker(text.alignment, selection: $alignment) {
                         Text(text.leading).tag("leading"); Text(text.center).tag("center"); Text(text.trailing).tag("trailing")
                     }.pickerStyle(.menu)
@@ -146,6 +166,7 @@ struct NotchNetworkSettings: View {
     private func resetAppearance() {
         fontSize = 10; width = 72; offset = 0; uploadOnLeft = false
         decimals = 1; weight = "medium"; tint = "white"; opacity = 0.9; alignment = "center"; arrowGap = 3
+        downloadColor = "B3D1FF"; uploadColor = "73F2FF"; colorScope = "all"
     }
 
     private func applyPreset(_ preset: Int) {
@@ -170,6 +191,16 @@ struct NotchNetworkSettings: View {
                 return raw.isFinite ? min(range.upperBound, max(range.lowerBound, raw)) : range.lowerBound
             }, set: { value.wrappedValue = $0 }), in: range, step: step)
                 .labelsHidden().accessibilityLabel(title)
+        }
+    }
+
+    private func colorBinding(_ storage: Binding<String>, fallback: String) -> Binding<Color> {
+        Binding {
+            let rgb = MenuBarUsageBarSupport.rgb(for: storage.wrappedValue, fallback: fallback)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+            storage.wrappedValue = MenuBarUsageBarSupport.hex(red: Double(rgb.redComponent), green: Double(rgb.greenComponent), blue: Double(rgb.blueComponent))
         }
     }
 }

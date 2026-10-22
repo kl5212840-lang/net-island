@@ -1465,7 +1465,12 @@ final class NotchService: ObservableObject {
         // or a capture preview under the pointer can be told the pointer left.
         // An open page is followed again only from an exit report.
         if !expanded { removeHoverExitMonitors() }
-        mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
+        // SwiftUI crossfades only the page when moving between sections. A
+        // host-wide replacement also fades the navigation controls and can
+        // race the asynchronous page redraw, producing an abrupt swap.
+        let switchesPage = expanded && selected != destination && !showingSections && !sections
+            && !showingAppPanel && !appPanel && selectedMetric == nil && metric == nil && !closesCommandBar
+        mutatePresentation(transitionContent: switchesPage ? .none : changesPresentation ? (expanded ? .replace : .reveal) : .none) {
             showingCommandBar = false
             showingAppPanel = appPanel
             showingSections = sections

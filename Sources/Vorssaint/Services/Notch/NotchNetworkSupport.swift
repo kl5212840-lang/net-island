@@ -13,13 +13,17 @@ struct NotchNetworkStyle: Equatable {
     var decimals = 1
     var weight = "medium"
     var tint = "white"
+    var downloadColor = "B3D1FF"
+    var uploadColor = "73F2FF"
+    var colorScope = "all"
     var opacity = 0.9
     var alignment = "center"
     var arrowGap: CGFloat = 3
 
     init(fontSize: Double = 10, wingWidth: Double = 72, verticalOffset: Double = 0, uploadOnLeft: Bool = false, fullUnits: Bool = false,
          decimals: Int = 1, weight: String = "medium", tint: String = "white", opacity: Double = 0.9,
-         alignment: String = "center", arrowGap: Double = 3) {
+         alignment: String = "center", arrowGap: Double = 3,
+         downloadColor: String = "B3D1FF", uploadColor: String = "73F2FF", colorScope: String = "all") {
         self.fontSize = Self.clamp(fontSize, 9...16, fallback: 10).rounded()
         self.wingWidth = max(Self.minimumWidth(fontSize: self.fontSize, fullUnits: fullUnits, decimals: decimals, arrowGap: arrowGap),
                              Self.clamp(wingWidth, 64...180, fallback: 72).rounded())
@@ -28,7 +32,10 @@ struct NotchNetworkStyle: Equatable {
         self.fullUnits = fullUnits
         self.decimals = min(2, max(0, decimals))
         self.weight = ["regular", "medium", "bold"].contains(weight) ? weight : "medium"
-        self.tint = ["white", "direction"].contains(tint) ? tint : "white"
+        self.tint = ["white", "direction", "custom"].contains(tint) ? tint : "white"
+        self.downloadColor = MenuBarUsageBarSupport.sanitizedColorHex(downloadColor, fallback: "B3D1FF")
+        self.uploadColor = MenuBarUsageBarSupport.sanitizedColorHex(uploadColor, fallback: "73F2FF")
+        self.colorScope = colorScope == "arrows" ? "arrows" : "all"
         self.opacity = Double(Self.clamp(opacity, 0.6...1, fallback: 0.9))
         self.alignment = ["leading", "center", "trailing"].contains(alignment) ? alignment : "center"
         self.arrowGap = Self.clamp(arrowGap, 2...10, fallback: 3)
@@ -48,6 +55,18 @@ struct NotchNetworkStyle: Equatable {
         return min(room, max(-room, verticalOffset))
     }
 
+    var minimumColorContrast: Double {
+        let colors = tint == "white" ? ["FFFFFF"] : tint == "custom" ? [downloadColor, uploadColor] : ["B3D1FF", "73F2FF"]
+        return colors.map { hex in
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: "FFFFFF")
+            func linear(_ channel: Double) -> Double {
+                let value = channel * opacity
+                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            return (0.2126 * linear(rgb.red) + 0.7152 * linear(rgb.green) + 0.0722 * linear(rgb.blue) + 0.05) / 0.05
+        }.min() ?? 21
+    }
+
     static func stored(in defaults: UserDefaults = .standard) -> Self {
         Self(fontSize: defaults.object(forKey: DefaultsKey.notchNetworkFontSize) as? Double ?? 10,
              wingWidth: defaults.object(forKey: DefaultsKey.notchNetworkWidth) as? Double ?? 72,
@@ -59,7 +78,10 @@ struct NotchNetworkStyle: Equatable {
              tint: defaults.string(forKey: DefaultsKey.notchNetworkTint) ?? "white",
              opacity: defaults.object(forKey: DefaultsKey.notchNetworkOpacity) as? Double ?? 0.9,
              alignment: defaults.string(forKey: DefaultsKey.notchNetworkAlignment) ?? "center",
-             arrowGap: defaults.object(forKey: DefaultsKey.notchNetworkArrowGap) as? Double ?? 3)
+             arrowGap: defaults.object(forKey: DefaultsKey.notchNetworkArrowGap) as? Double ?? 3,
+             downloadColor: defaults.string(forKey: DefaultsKey.notchNetworkDownloadColor) ?? "B3D1FF",
+             uploadColor: defaults.string(forKey: DefaultsKey.notchNetworkUploadColor) ?? "73F2FF",
+             colorScope: defaults.string(forKey: DefaultsKey.notchNetworkColorScope) ?? "all")
     }
 }
 

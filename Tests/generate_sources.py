@@ -976,6 +976,8 @@ def main():
           + "}\nextension NotchCompactTests.Embedded {\n"
           + declaration(scratchpad_view, "    private func focusEditor(").replace("private func", "func", 1)
           + "}\nextension NotchCompactTests.Page {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var contentViewportSize:")
+              .replace("    private ", "    ", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var pageSize:")
               .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
               .replace("NotchTimerService.shared", "NotchCompactTests.NotchTimerService.shared")

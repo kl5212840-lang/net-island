@@ -25,7 +25,10 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkAvoidMenus: false,
             DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 16.0 : 10.0,
             DefaultsKey.notchNetworkDecimals: arguments.contains("--large") ? 2 : 1,
-            DefaultsKey.notchNetworkTint: arguments.contains("--large") ? "direction" : "white",
+            DefaultsKey.notchNetworkTint: arguments.contains("--custom") ? "custom" : arguments.contains("--large") ? "direction" : "white",
+            DefaultsKey.notchNetworkDownloadColor: "CDB5FF",
+            DefaultsKey.notchNetworkUploadColor: "FFD27D",
+            DefaultsKey.notchNetworkColorScope: arguments.contains("--arrows-only") ? "arrows" : "all",
             DefaultsKey.notchNetworkWeight: arguments.contains("--large") ? "bold" : "medium",
             DefaultsKey.notchNetworkArrowGap: arguments.contains("--large") ? 10.0 : 3.0,
             DefaultsKey.notchNetworkOpacity: 0.9,
@@ -92,15 +95,16 @@ enum NotchNetworkProbe {
         .background(Color(nsColor: .windowBackgroundColor))
         capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
-        for width: CGFloat in [360, 600] {
+        for width: CGFloat in [360, 480, 600] {
             let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
                                          layout: .custom, compactSideRoom: 100,
-                                         customWidth: Double(width), customHeight: 360)
+                                         customWidth: Double(width), customHeight: width == 480 ? 260 : 360)
             for module: NotchModule in [.system, .tools] {
                 NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: module)
                 let size = NotchService.shared.surfaceSize
                 let header = NotchView(service: .shared).background(.black)
-                capture(AnyView(header), size: size, name: "navigation-\(module.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures)
+                    .clipShape(NotchShape.island(height: size.height, geometry: geometry))
+                capture(AnyView(header), size: size, name: "navigation-\(module.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
             }
         }
         for position in NotchNavigationPosition.allCases {
@@ -109,8 +113,9 @@ enum NotchNetworkProbe {
             let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
                                          layout: .custom, customWidth: 600, customHeight: 360)
             NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .system)
-            capture(AnyView(NotchView(service: .shared).background(.black)), size: NotchService.shared.surfaceSize,
-                    name: "arrows-\(position.rawValue)-\(language)", output: output, failures: &failures)
+            capture(AnyView(NotchView(service: .shared).background(.black)
+                .clipShape(NotchShape.island(height: NotchService.shared.surfaceSize.height, geometry: geometry))), size: NotchService.shared.surfaceSize,
+                    name: "arrows-\(position.rawValue)-\(language)", output: output, failures: &failures, island: true)
         }
         capture(AnyView(NotchNavigationSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
                 size: CGSize(width: 460, height: 200), name: "navigation-settings-\(language)", output: output, failures: &failures)
@@ -130,10 +135,11 @@ enum NotchNetworkProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
-    private static func capture(_ view: AnyView, size: CGSize, name: String, output: URL, failures: inout [String]) {
+    private static func capture(_ view: AnyView, size: CGSize, name: String, output: URL, failures: inout [String], island: Bool = false) {
         let proposed = view.environment(\.colorScheme, .dark).tint(.blue)
         let measured = NSHostingController(rootView: proposed).sizeThatFits(in: size)
-        let host = NSHostingView(rootView: proposed.frame(width: size.width, height: size.height, alignment: .topLeading))
+        let framed = AnyView(proposed.frame(width: size.width, height: size.height, alignment: .topLeading))
+        let host: NSHostingView<AnyView> = island ? NotchHostingView(rootView: framed) : NSHostingView(rootView: framed)
         host.sizingOptions = []
         let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless,
                               backing: .buffered, defer: false)
@@ -144,6 +150,15 @@ enum NotchNetworkProbe {
         host.layoutSubtreeIfNeeded()
         RunLoop.current.run(until: Date().addingTimeInterval(0.15))
         host.layoutSubtreeIfNeeded()
+        if island {
+            func inspect(_ view: NSView) {
+                if let scroll = view as? NSScrollView, scroll.hasVerticalScroller || scroll.hasHorizontalScroller {
+                    failures.append("\(name) exposes a native scroller")
+                }
+                for child in view.subviews { inspect(child) }
+            }
+            inspect(host)
+        }
         if measured.width > size.width + 1 || measured.height > size.height + 1 {
             failures.append("\(name) exceeds its capture: \(measured)")
         }

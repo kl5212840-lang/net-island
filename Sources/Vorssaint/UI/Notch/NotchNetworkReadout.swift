@@ -16,6 +16,9 @@ struct NotchNetworkReadout: View {
     var tint = "white"
     var opacity = 0.9
     var arrowGap: CGFloat = 3
+    var downloadColor = "B3D1FF"
+    var uploadColor = "73F2FF"
+    var colorScope = "all"
     @ObservedObject private var l10n = L10n.shared
 
     private var rate: Double? {
@@ -26,15 +29,25 @@ struct NotchNetworkReadout: View {
         title + ": " + NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: true, decimals: decimals)
     }
 
+    private var directionColor: Color {
+        if tint == "custom" {
+            let rgb = MenuBarUsageBarSupport.rgb(for: upload ? uploadColor : downloadColor, fallback: "FFFFFF")
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        }
+        if tint == "direction" { return upload ? Color(red: 0.45, green: 0.95, blue: 1) : Color(red: 0.70, green: 0.82, blue: 1) }
+        return .white
+    }
+
     var body: some View {
         HStack(spacing: arrowGap) {
             Image(systemName: upload ? "arrow.up" : "arrow.down")
                 .font(.system(size: max(8, fontSize - 1), weight: .semibold))
+                .foregroundStyle(directionColor.opacity(opacity))
             Text(NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: fullUnits, decimals: decimals))
                 .font(.system(size: fontSize, weight: weight)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.85)
+                .foregroundStyle((colorScope == "arrows" ? Color.white : directionColor).opacity(opacity))
         }
-        .foregroundStyle((tint == "direction" ? (upload ? Color(red: 0.45, green: 0.95, blue: 1) : Color(red: 0.70, green: 0.82, blue: 1)) : .white).opacity(opacity))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(detail)
         .help(detail)
@@ -54,7 +67,8 @@ struct NotchNetworkWing: View {
         NotchNetworkReadout(bytesPerSecond: upload ? monitor.snapshot.netUpBytesPerSec : monitor.snapshot.netDownBytesPerSec,
                             upload: upload, inBits: unit == .bits, fontSize: style.fontSize, fullUnits: style.fullUnits,
                             decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                            opacity: style.opacity, arrowGap: style.arrowGap)
+                            opacity: style.opacity, arrowGap: style.arrowGap,
+                            downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
             .frame(maxWidth: .infinity, alignment: style.readingAlignment)
             .offset(y: style.offset(in: bodyHeight))
     }
