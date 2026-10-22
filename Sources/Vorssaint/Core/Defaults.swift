@@ -809,6 +809,7 @@ enum DefaultsKey {
     static let notchAgentsOptInMigrated = "notchAgentsOptInMigrated" // local migration marker; never backed up
     static let notchIdleContent = "notchIdleContent"
     static let notchNavigationPosition = "notchNavigationPosition"
+    static let notchSystemLayout = "notchSystemLayout"
     static let notchNetworkPaused = "notchNetworkPaused"
     static let notchNetworkFullUnits = "notchNetworkFullUnits"
     static let notchNetworkDecimals = "notchNetworkDecimals"
@@ -1435,6 +1436,7 @@ enum Defaults {
         DefaultsKey.notchPreferredPlayer: "",
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchNavigationPosition: "top",
+        DefaultsKey.notchSystemLayout: "original",
         DefaultsKey.notchNetworkPaused: false,
         DefaultsKey.notchNetworkFullUnits: false,
         DefaultsKey.notchNetworkDecimals: 1,

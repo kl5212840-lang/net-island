@@ -34,6 +34,7 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkOpacity: 0.9,
             DefaultsKey.notchNetworkAlignment: "center",
             DefaultsKey.notchNavigationPosition: "top",
+            DefaultsKey.notchSystemLayout: "original",
             "AppleShowScrollBars": "Always",
             DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 144.0 : 72.0,
             DefaultsKey.notchNetworkOffset: arguments.contains("--large") ? 3.0 : 0.0,
@@ -119,6 +120,23 @@ enum NotchNetworkProbe {
         }
         capture(AnyView(NotchNavigationSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
                 size: CGSize(width: 460, height: 200), name: "navigation-settings-\(language)", output: output, failures: &failures)
+        for layout in NotchSystemLayout.allCases {
+            overrides[DefaultsKey.notchSystemLayout] = layout.rawValue
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            for width: CGFloat in [360, 480, 600] {
+                let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                             layout: .custom, customWidth: Double(width), customHeight: 360)
+                NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .system)
+                let size = NotchService.shared.surfaceSize
+                capture(AnyView(NotchView(service: .shared).background(.black)
+                    .clipShape(NotchShape.island(height: size.height, geometry: geometry))), size: size,
+                        name: "system-\(layout.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+            }
+        }
+        overrides[DefaultsKey.notchSystemLayout] = "original"
+        UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+        capture(AnyView(NotchSystemLayoutSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                size: CGSize(width: 460, height: 250), name: "system-layout-settings-\(language)", output: output, failures: &failures)
         NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
         overrides[DefaultsKey.notchNetworkAutoHide] = true
         UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)

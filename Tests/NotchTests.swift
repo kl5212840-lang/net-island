@@ -119,6 +119,25 @@ enum NotchTests {
 
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 504) == [0..<3, 3..<5, 5..<7],
                      "seven System metrics fill balanced rows instead of leaving a nearly empty column")
+        suite.expect(NotchSystemLayout.resolved("") == .original && NotchSystemLayout.resolved("unknown") == .original,
+                     "new and imported preferences preserve the original System arrangement")
+        // A gutter used to cross the three-column breakpoint, unexpectedly
+        // replacing the familiar grid with two columns at the same island size.
+        suite.expect(NotchSystemLayout.original.rows(count: 6, width: 416, originalWidth: 448) == [0..<3, 3..<6]
+                     && NotchSystemLayout.adaptive.rows(count: 6, width: 416, originalWidth: 448) == [0..<2, 2..<4, 4..<6],
+                     "arrow gutters no longer silently change the original System row arrangement")
+        suite.expect(NotchSystemLayout.twoColumns.rows(count: 7, width: 504, originalWidth: 536) == [0..<2, 2..<4, 4..<6, 6..<7]
+                     && NotchSystemLayout.threeColumns.rows(count: 7, width: 504, originalWidth: 536) == [0..<3, 3..<6, 6..<7],
+                     "manual columns follow the chosen count and preserve the final metric")
+        for style in NotchSystemLayout.allCases {
+            for width: CGFloat in [20, 272, 416, 504, 744] {
+                for count in 0...9 {
+                    let rows = style.rows(count: count, width: width, originalWidth: width + 32)
+                    suite.expect(rows.flatMap { Array($0) } == Array(0..<count),
+                                 "each System layout preserves all enabled metrics in reading order")
+                }
+            }
+        }
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 304) == [0..<2, 2..<4, 4..<6, 6..<7],
                      "narrow System rows keep readable cards and a full-width last card")
         for width: CGFloat in [20, 304, 424, 504, 744] {

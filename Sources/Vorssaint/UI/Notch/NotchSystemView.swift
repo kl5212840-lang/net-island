@@ -5,10 +5,12 @@ import SwiftUI
 
 struct NotchSystemView: View {
     let size: CGSize
+    var originalWidth: CGFloat? = nil
     let select: (MetricDetailKind) -> Void
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
+    @AppStorage(DefaultsKey.notchSystemLayout) private var systemLayout = "original"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private struct Card: Identifiable {
@@ -97,7 +99,8 @@ struct NotchSystemView: View {
             NotchEmptyView(symbol: "gauge.with.dots.needle.50percent", message: l10n.s.monitorUnavailable)
         } else {
             let inset = NotchLayout.systemHoverInset(width: size.width)
-            let rows = NotchLayout.systemRowRanges(count: cards.count, width: size.width - inset * 2)
+            let rows = NotchSystemLayout.resolved(systemLayout).rows(count: cards.count, width: size.width,
+                                                                    originalWidth: originalWidth ?? size.width)
             let height = NotchLayout.railHeight(rows: rows.count, rowHeight: NotchLayout.systemCardHeight,
                                                spacing: NotchLayout.rowSpacing) + inset * 2
             Group {

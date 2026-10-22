@@ -3,6 +3,30 @@
 
 import Foundation
 
+/// Original keeps the upstream row arrangement before navigation gutters
+/// were introduced. The cards still fit inside the safe, narrower viewport.
+enum NotchSystemLayout: String, CaseIterable {
+    case original, adaptive, twoColumns, threeColumns
+
+    static func resolved(_ value: String) -> Self { Self(rawValue: value) ?? .original }
+
+    func rows(count: Int, width: CGFloat, originalWidth: CGFloat) -> [Range<Int>] {
+        let available = max(0, width - NotchLayout.systemHoverInset(width: width) * 2)
+        switch self {
+        case .original:
+            return NotchLayout.systemRowRanges(count: count, width: max(0, originalWidth
+                - NotchLayout.systemHoverInset(width: originalWidth) * 2))
+        case .adaptive:
+            return NotchLayout.systemRowRanges(count: count, width: available)
+        case .twoColumns, .threeColumns:
+            // Manual columns retain readable cards on unusually narrow islands.
+            let capacity = NotchLayout.railCapacity(width: available, itemWidth: 100, spacing: NotchLayout.rowSpacing)
+            let columns = min(self == .twoColumns ? 2 : 3, capacity)
+            return stride(from: 0, to: max(0, count), by: columns).map { $0..<min(count, $0 + columns) }
+        }
+    }
+}
+
 enum NotchNavigationPosition: String, CaseIterable {
     case top, center, bottom
 

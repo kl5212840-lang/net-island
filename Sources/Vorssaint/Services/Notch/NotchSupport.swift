@@ -475,6 +475,12 @@ enum NotchLayout {
     static func systemRowRanges(count: Int, width: CGFloat) -> [Range<Int>] {
         guard count > 0 else { return [] }
         let columns = railCapacity(width: width, itemWidth: systemCardWidth, spacing: rowSpacing)
+        return systemRowRanges(count: count, columns: columns)
+    }
+
+    static func systemRowRanges(count: Int, columns: Int) -> [Range<Int>] {
+        guard count > 0 else { return [] }
+        let columns = max(1, columns)
         let rows = (count + columns - 1) / columns
         let base = count / rows
         let remainder = count % rows

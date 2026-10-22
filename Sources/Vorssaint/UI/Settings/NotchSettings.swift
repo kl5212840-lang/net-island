@@ -331,9 +331,10 @@ struct NotchSettings: View {
                     }
                     if !wide { preview(width: detailWidth, limit: 280) }
                     NotchNavigationSettings()
+                    if available, module == .system { NotchSystemLayoutSettings() }
                     if available, hasOptions(module) {
                         SettingsCard { moduleOptions(module) }
-                    } else if available {
+                    } else if available, module != .system {
                         Text(editor.noOptions).font(.callout).foregroundStyle(.secondary)
                     }
                 }

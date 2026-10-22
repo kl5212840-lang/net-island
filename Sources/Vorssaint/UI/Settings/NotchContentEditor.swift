@@ -166,7 +166,11 @@ struct NotchPagePreview: View {
         case .captures:
             RecentCapturesView(onClose: nil, notchSize: size).notchBand(trailing: { NotchClearCapturesButton() })
         case .files: NotchFilesView(service: notch)
-        case .system: NotchSystemView(size: size) { _ in }
+        case .system:
+            let inset: CGFloat = notch.modules.count > 1 ? 16 : 0
+            NotchSystemView(size: CGSize(width: max(0, size.width - inset * 2), height: size.height),
+                            originalWidth: size.width) { _ in }
+                .padding(.horizontal, inset)
         case .tools: QuickLauncherView(notchSize: size)
         case .scratchpad: NotchScratchpadStill()
         case .agents:

@@ -648,7 +648,7 @@ struct NotchView: View {
                 }
             case .files: NotchFilesView(service: service)
             case .system:
-                NotchSystemView(size: pageSize) { service.showMetric($0) }
+                NotchSystemView(size: pageSize, originalWidth: service.contentSize.width) { service.showMetric($0) }
             // The launcher hands the row its own controls, which a row set
             // here would replace.
             case .tools: QuickLauncherView(notchSize: pageSize)
