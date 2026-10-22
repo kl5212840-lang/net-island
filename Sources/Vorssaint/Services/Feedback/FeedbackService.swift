@@ -63,7 +63,7 @@ final class FeedbackService {
     private let encoder = JSONEncoder()
 
     private init() {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpCookieAcceptPolicy = .never
@@ -77,6 +77,7 @@ final class FeedbackService {
     func submit(kind: FeedbackKind,
                 message: String,
                 diagnostics: FeedbackDiagnostics?) async throws {
+        guard NetworkPrivacy.allowsContentUploads else { throw FeedbackError.unavailable }
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.utf16.count >= 10, trimmed.utf16.count <= 2_000 else {
             throw FeedbackError.rejected

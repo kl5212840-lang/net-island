@@ -330,6 +330,7 @@ struct NotchSettings: View {
                         SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: moduleFeature(module))
                     }
                     if !wide { preview(width: detailWidth, limit: 280) }
+                    NotchNavigationSettings()
                     if available, hasOptions(module) {
                         SettingsCard { moduleOptions(module) }
                     } else if available {
@@ -441,10 +442,10 @@ struct NotchSettings: View {
             }
             SettingsFeatureSwitchRow(symbol: "text.quote", title: music.enableLyrics, isOn: $lyricsEnabled, feature: .notchLyrics)
             if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
-                switchRow("globe", music.online, caption: music.onlineHint, isOn: $lyricsOnline)
+                switchRow("globe", music.online, caption: NetworkPrivacyStrings.localLyrics, isOn: .constant(false)).disabled(true)
                     .padding(.leading, settingsRowTextInset)
             }
-            switchRow("photo", music.browserCovers, caption: music.browserCoversHint, isOn: $browserCovers)
+            switchRow("photo", music.browserCovers, caption: NetworkPrivacyStrings.blocked, isOn: .constant(false)).disabled(true)
             SettingsFeatureSwitchRow(symbol: "list.bullet", title: music.enableQueue, caption: music.queueDescription,
                                      isOn: $queueEnabled, feature: .notchQueue)
             SettingsFeatureSwitchRow(symbol: "waveform", title: music.liveEqualizer,

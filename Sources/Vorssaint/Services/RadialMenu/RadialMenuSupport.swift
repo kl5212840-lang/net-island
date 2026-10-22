@@ -1019,6 +1019,9 @@ enum RadialMenuFaviconFetcher {
     /// Fetches the favicon for a URL string on-demand.
     /// Runs on a background task, calls completion on main queue.
     static func fetchFavicon(for rawURL: String, completion: @escaping (Result<Data, Error>) -> Void) {
+        guard NetworkPrivacy.allowsRemoteMetadata else {
+            DispatchQueue.main.async { completion(.failure(FaviconError.notFound)) }; return
+        }
         guard let url = faviconURL(for: rawURL) else {
             DispatchQueue.main.async {
                 completion(.failure(FaviconError.invalidURL))
@@ -1129,7 +1132,7 @@ enum RadialMenuFaviconFetcher {
                                      cachePolicy: .reloadIgnoringLocalCacheData,
                                      timeoutInterval: 5)
             request.setValue("image/*", forHTTPHeaderField: "Accept")
-            let configuration = URLSessionConfiguration.ephemeral
+            let configuration = NetworkPrivacy.offlineConfiguration()
             configuration.timeoutIntervalForRequest = 5
             configuration.timeoutIntervalForResource = 5
             let session = URLSession(configuration: configuration,

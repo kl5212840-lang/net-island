@@ -41,6 +41,7 @@ enum AgentPriceSource {
     /// The published list, checked before it is handed over; nil on any
     /// failure, which leaves the current list in place.
     static func download(completion: @escaping ((data: Data, list: AgentPriceList)?) -> Void) {
+        guard NetworkPrivacy.allowsRemoteMetadata else { completion(nil); return }
         AgentDownload.start(remote, limit: AgentPriceList.maximumSize) { data in
             guard let data, let list = AgentPriceList.decode(data) else { completion(nil); return }
             completion((data, list))
@@ -66,7 +67,7 @@ private final class AgentDownload: NSObject, URLSessionDataDelegate {
     static func start(_ url: URL, limit: Int, completion: @escaping (Data?) -> Void) {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 30
         configuration.httpCookieStorage = nil

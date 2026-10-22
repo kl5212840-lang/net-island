@@ -229,11 +229,11 @@ struct ShelfTilesView: NSViewRepresentable {
             let size = ShelfTileLayout.sidewaysDocumentSize(itemCount: items.count, rows: rows,
                                                              visibleSize: scroll.contentSize, tileSize: tile,
                                                              spacing: spacing, inset: inset)
-            scroll.hasHorizontalScroller = size.width > scroll.contentSize.width + 1
+            scroll.hasHorizontalScroller = !sideways && size.width > scroll.contentSize.width + 1
             document.frame = NSRect(origin: .zero, size: size)
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
-            scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
+            scroll.hasVerticalScroller = !sideways && contentHeight > scroll.contentSize.height + 1
             document.frame = NSRect(x: 0,
                                     y: 0,
                                     width: contentWidth,

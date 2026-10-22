@@ -125,6 +125,7 @@ enum AgentClaudeServerTests {
                     environment: ["PATH": "/usr/bin:/bin", "HOME": folder.path, "STAND_IN": mode, "CLAUDECODE": "nested"],
                     timeout: timeout)
             }
+            if NetworkPrivacy.allowsAccountQueries {
             let summary = try? run("ok").get()
             suite.expect(summary?.limits.windows.map(\.usedPercent) == [100, 9],
                          "a CLI conversation initializes and asks get_usage without a user prompt, hooks, tools or MCP")
@@ -160,6 +161,10 @@ enum AgentClaudeServerTests {
             let cancelled = request.run(tool, home: folder, environment: ["PATH": "/usr/bin:/bin", "STAND_IN": "silent"], timeout: 10)
             suite.expect(cancelled == .failure(.unreachable) && Date().timeIntervalSince(cancelling) < 4,
                          "pause or disable closes an active CLI request rather than waiting for its full timeout")
+            } else {
+                suite.expect(run("ok") == .failure(.unreachable),
+                             "private build refuses to launch the Claude CLI even with a valid executable")
+            }
             let missing = AgentClaudeServer.executable(home: folder, searchPath: nil)
             suite.expect(missing != tool, "CLI discovery never guesses an executable from a project folder")
             // Run the production service's source selection against an older
@@ -392,7 +397,7 @@ enum AgentClaudeServerTests {
                     environment: ["PATH": path, "HOME": local.path, "STAND_IN": "ok"], timeout: 5)
             }
             suite.expect(tool?.path.hasSuffix("/.claude/local/claude") == true
-                            && (try? answer?.get())?.limits.windows.isEmpty == false && path.hasPrefix("/usr/bin:/bin:"),
+                            && (NetworkPrivacy.allowsAccountQueries ? (try? answer?.get())?.limits.windows.isEmpty == false : answer == .failure(.unreachable)) && path.hasPrefix("/usr/bin:/bin:"),
                          "a Claude Code in ~/.claude/local runs on the Node a version manager keeps, after the system's tools")
         } catch { suite.expect(false, "Claude Code install fixture: \(error)") }
         let failures: [AgentClaudeServer.Failure] = [.missing, .needsSignIn, .outdated, .unreachable]

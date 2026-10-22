@@ -26,6 +26,7 @@ class AgentCLIConversation {
 
     init?(_ executable: URL, arguments: [String], environment: [String: String], timeout: TimeInterval,
           cancellation: BoundedProcessCancellation? = nil) {
+        guard NetworkPrivacy.allowsAccountQueries else { return nil }
         self.cancellation = cancellation
         deadline = .now() + timeout
         process.executableURL = executable

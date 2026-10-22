@@ -23,7 +23,15 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkFullUnits: arguments.contains("--full"),
             DefaultsKey.notchNetworkAutoHide: false,
             DefaultsKey.notchNetworkAvoidMenus: false,
-            DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 14.0 : 10.0,
+            DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 16.0 : 10.0,
+            DefaultsKey.notchNetworkDecimals: arguments.contains("--large") ? 2 : 1,
+            DefaultsKey.notchNetworkTint: arguments.contains("--large") ? "direction" : "white",
+            DefaultsKey.notchNetworkWeight: arguments.contains("--large") ? "bold" : "medium",
+            DefaultsKey.notchNetworkArrowGap: arguments.contains("--large") ? 10.0 : 3.0,
+            DefaultsKey.notchNetworkOpacity: 0.9,
+            DefaultsKey.notchNetworkAlignment: "center",
+            DefaultsKey.notchNavigationPosition: "top",
+            "AppleShowScrollBars": "Always",
             DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 144.0 : 72.0,
             DefaultsKey.notchNetworkOffset: arguments.contains("--large") ? 3.0 : 0.0,
             DefaultsKey.notchNetworkUploadOnLeft: false,
@@ -82,26 +90,41 @@ enum NotchNetworkProbe {
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(24)
         .background(Color(nsColor: .windowBackgroundColor))
-        capture(AnyView(readouts), size: CGSize(width: 540, height: 260),
+        capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
         for width: CGFloat in [360, 600] {
             let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
                                          layout: .custom, compactSideRoom: 100,
                                          customWidth: Double(width), customHeight: 360)
-            NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true)
-            let size = NotchService.shared.surfaceSize
-            let header = NotchView(service: .shared).background(.black)
-            capture(AnyView(header), size: size, name: "network-header-\(language)-\(Int(width))", output: output, failures: &failures)
+            for module: NotchModule in [.system, .tools] {
+                NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: module)
+                let size = NotchService.shared.surfaceSize
+                let header = NotchView(service: .shared).background(.black)
+                capture(AnyView(header), size: size, name: "navigation-\(module.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
         }
+        for position in NotchNavigationPosition.allCases {
+            overrides[DefaultsKey.notchNavigationPosition] = position.rawValue
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                         layout: .custom, customWidth: 600, customHeight: 360)
+            NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .system)
+            capture(AnyView(NotchView(service: .shared).background(.black)), size: NotchService.shared.surfaceSize,
+                    name: "arrows-\(position.rawValue)-\(language)", output: output, failures: &failures)
+        }
+        capture(AnyView(NotchNavigationSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                size: CGSize(width: 460, height: 200), name: "navigation-settings-\(language)", output: output, failures: &failures)
         NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
         overrides[DefaultsKey.notchNetworkAutoHide] = true
         UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
-        let settings = NotchNetworkSettings().padding(20)
+        let settings = NotchNetworkSettings(expandAppearance: arguments.contains("--expanded"), expandBehavior: arguments.contains("--expanded")).padding(20)
             .background(Color(nsColor: .windowBackgroundColor))
         for width: CGFloat in [460, 760] {
-            capture(AnyView(settings), size: CGSize(width: width, height: 900),
+            capture(AnyView(settings), size: CGSize(width: width, height: arguments.contains("--expanded") ? 1400 : 650),
                     name: "network-settings-\(language)-\(Int(width))", output: output, failures: &failures)
         }
+        capture(AnyView(NetworkPrivacySettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                size: CGSize(width: 460, height: 420), name: "privacy-\(language)", output: output, failures: &failures)
         monitor.setNotchDetailNeeds(.none)
         print(failures.isEmpty ? "NETWORK ISLAND OK" : "NETWORK ISLAND FAILED: " + failures.joined(separator: "; "))
         exit(failures.isEmpty ? 0 : 1)

@@ -595,7 +595,7 @@ private struct ScreenshotQuickPreviewView: View {
                 .screenshotSafeHelp(strings.shareButton)
                 .accessibilityLabel(strings.shareButton)
             }
-            if sharingEnabled, model.sharedRecord == nil {
+            if NetworkPrivacy.allowsContentUploads, sharingEnabled, model.sharedRecord == nil {
                 shareMenu
             }
             if !embedded { Spacer(minLength: 4) }

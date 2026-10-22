@@ -106,6 +106,8 @@ struct NotchSystemView: View {
                         grid(cards: cards, rows: rows).padding(inset)
                             .contentShape(Rectangle())
                     }
+                    .scrollIndicators(.hidden)
+                    .notchScrollEdgeFade(length: 12)
                 } else {
                     grid(cards: cards, rows: rows).padding(inset)
                 }

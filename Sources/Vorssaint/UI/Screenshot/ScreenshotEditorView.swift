@@ -910,7 +910,7 @@ struct ScreenshotEditorView: View {
             .screenshotSafeHelp(strings.shareButton)
             .accessibilityLabel(strings.shareButton)
 
-            if sharingEnabled {
+            if NetworkPrivacy.allowsContentUploads && sharingEnabled {
                 shareMenu
             }
             Divider().frame(height: 16).padding(.horizontal, 3)

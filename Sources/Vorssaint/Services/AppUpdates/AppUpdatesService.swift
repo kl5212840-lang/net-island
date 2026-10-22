@@ -45,13 +45,13 @@ final class AppUpdatesService: ObservableObject {
 
     private let workQueue = DispatchQueue(label: "com.vorssaint.appupdates", qos: .utility)
     private lazy var lookupSession: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
         return URLSession(configuration: configuration)
     }()
     private lazy var catalogSession: URLSession = {
-        let configuration = URLSessionConfiguration.default
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.requestCachePolicy = .useProtocolCachePolicy
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
@@ -90,7 +90,7 @@ final class AppUpdatesService: ObservableObject {
 
     func syncWithPreferences() {
         reloadRules()
-        guard AppFeature.appUpdates.isAvailable, frequency != .off else {
+        guard NetworkPrivacy.allowsRemoteMetadata, AppFeature.appUpdates.isAvailable, frequency != .off else {
             stop()
             return
         }
@@ -150,6 +150,7 @@ final class AppUpdatesService: ObservableObject {
     /// Scans the enabled sources. `automatic` marks the background pass,
     /// which alone can post a notification and re-arm the schedule.
     func check(automatic: Bool = false) {
+        guard NetworkPrivacy.allowsRemoteMetadata else { stop(); return }
         guard AppFeature.appUpdates.isAvailable else { return }
         if isChecking {
             automaticCheckPending = automaticCheckPending || automatic

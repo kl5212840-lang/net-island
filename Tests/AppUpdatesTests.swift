@@ -6,6 +6,12 @@ import Foundation
 /// Generated production methods run with URLSession, controlled responses and a
 /// clock. No installed app is scanned, opened or changed by these contracts.
 enum AppUpdatesContract {
+    // Publisher parsing remains covered using the existing in-memory protocol.
+    // The shipped configuration is separately tested to reject all requests.
+    enum NetworkPrivacy {
+        static func offlineConfiguration() -> Foundation.URLSessionConfiguration { URLSessionConfiguration.ephemeral }
+    }
+
     final class Clock {
         var value = Date(timeIntervalSince1970: 1_800_000_000)
         var reads = 0

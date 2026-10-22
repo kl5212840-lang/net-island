@@ -26,7 +26,7 @@ final class ScreenshotShareService: ObservableObject {
     private var removedRecordIDs = Set<String>()
 
     private init() {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.revocationConfiguration()
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpCookieAcceptPolicy = .never
@@ -34,7 +34,7 @@ final class ScreenshotShareService: ObservableObject {
         configuration.timeoutIntervalForRequest = 75
         configuration.timeoutIntervalForResource = 90
         configuration.waitsForConnectivity = false
-        session = URLSession(configuration: configuration)
+        session = URLSession(configuration: configuration, delegate: NetworkRevocationDelegate.shared, delegateQueue: nil)
         // An expiry that came due during sleep never triggers its timer: the
         // deadline below is armed on a clock that stops with the Mac, so a link
         // that ran out overnight stays listed as live for as long as the Mac
@@ -75,7 +75,7 @@ final class ScreenshotShareService: ObservableObject {
 
     func createLink(pngData: Data,
                     duration: ScreenshotShareDuration) async throws -> ScreenshotShareRecord {
-        guard AppFeature.screenshot.isAvailable,
+        guard NetworkPrivacy.allowsContentUploads, AppFeature.screenshot.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
             throw ScreenshotShareError.unavailable
         }

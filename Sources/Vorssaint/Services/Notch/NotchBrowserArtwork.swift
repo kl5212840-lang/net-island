@@ -57,6 +57,7 @@ final class NotchBrowserArtwork {
     /// keep the running lookup and its `found` callback. A reading with
     /// nothing to look up, or none at all, stops the previous lookup.
     func request(for playback: NotchPlayback?, found: @escaping () -> Void) {
+        guard NetworkPrivacy.allowsRemoteMetadata else { cancel(); return }
         guard let playback, let key = NotchBrowserArtworkSupport.lookupKey(for: playback),
               let bundle = playback.track.appBundleIdentifier,
               let title = playback.track.title else { return cancel() }
@@ -283,7 +284,7 @@ private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegat
     private init(completion: @escaping (Data?) -> Void) { self.completion = completion }
 
     static func load(_ url: URL, accept: String, completion: @escaping (Data?) -> Void) -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 15
         configuration.urlCache = nil

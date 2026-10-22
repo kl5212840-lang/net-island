@@ -5,6 +5,33 @@ import AppKit
 
 enum NotchSectionPagingTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(NotchNavigationPosition.resolved("invalid") == .top, "invalid imported arrow position falls back to top")
+        for height: CGFloat in [160, 260, 400] {
+            let positions = NotchNavigationPosition.allCases.map { $0.topInset(pageTop: 60, height: height) }
+            suite.expect(positions == positions.sorted() && positions.first! >= 60 && positions.last! + 44 <= height - 28,
+                         "all arrow positions stay below the header and above the lower curve at height \(height)")
+        }
+        for width: CGFloat in [360, 600] {
+            var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
+                                         safeAreaTop: 32, cameraWidth: 180,
+                                         layout: .custom, customWidth: Double(width), customHeight: 360)
+            let anchors: [CGFloat] = [NotchPageTop.none, .row, .wrapsCamera].map { top in
+                geometry.pageTop = top
+                return NotchNavigationPosition.top.topInset(pageTop: NotchSectionNavigation.headerBoundary(in: geometry), height: 280)
+            }
+            suite.expect(Set(anchors).count == 1, "top arrow target is stable across different page headers at width \(width)")
+        }
+        let pages = ["system", "tools", "calendar"]
+        suite.expect(NotchSectionNavigation.neighbor(of: "calendar", in: pages, forward: true) == "system",
+                     "the last checked page wraps forward to the first")
+        suite.expect(NotchSectionNavigation.neighbor(of: "system", in: pages, forward: false) == "calendar",
+                     "the first checked page wraps backward to the last")
+        suite.expect(NotchSectionNavigation.neighbor(of: "tools", in: ["tools", "system"], forward: true) == "system",
+                     "arrows honor the user's checked page order")
+        suite.expect(NotchSectionNavigation.neighbor(of: "system", in: ["system"], forward: true) == nil
+                     && NotchSectionNavigation.neighbor(of: "system", in: [String](), forward: false) == nil,
+                     "zero or one checked page needs no navigation controls")
+
         suite.expect(NotchSectionPaging.rows(count: 14, columns: 4) == 4 && NotchSectionPaging.rows(count: 12, columns: 4) == 3
                && NotchSectionPaging.rows(count: 0, columns: 4) == 1 && NotchSectionPaging.rows(count: 5, columns: 0) == 5,
                "rows round the last partial row up and never vanish")

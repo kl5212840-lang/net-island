@@ -11,6 +11,11 @@ struct NotchNetworkReadout: View {
     var inBits = false
     var fontSize: CGFloat = 10
     var fullUnits = false
+    var decimals = 1
+    var weight: Font.Weight = .medium
+    var tint = "white"
+    var opacity = 0.9
+    var arrowGap: CGFloat = 3
     @ObservedObject private var l10n = L10n.shared
 
     private var rate: Double? {
@@ -18,18 +23,18 @@ struct NotchNetworkReadout: View {
     }
     private var title: String { upload ? l10n.s.networkUpload : l10n.s.networkDownload }
     private var detail: String {
-        title + ": " + NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: true)
+        title + ": " + NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: true, decimals: decimals)
     }
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: arrowGap) {
             Image(systemName: upload ? "arrow.up" : "arrow.down")
                 .font(.system(size: max(8, fontSize - 1), weight: .semibold))
-            Text(NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: fullUnits))
-                .font(.system(size: fontSize, weight: .medium)).monospacedDigit()
+            Text(NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: fullUnits, decimals: decimals))
+                .font(.system(size: fontSize, weight: weight)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.85)
         }
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle((tint == "direction" ? (upload ? Color(red: 0.45, green: 0.95, blue: 1) : Color(red: 0.70, green: 0.82, blue: 1)) : .white).opacity(opacity))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(detail)
         .help(detail)
@@ -47,7 +52,10 @@ struct NotchNetworkWing: View {
 
     var body: some View {
         NotchNetworkReadout(bytesPerSecond: upload ? monitor.snapshot.netUpBytesPerSec : monitor.snapshot.netDownBytesPerSec,
-                            upload: upload, inBits: unit == .bits, fontSize: style.fontSize, fullUnits: style.fullUnits)
+                            upload: upload, inBits: unit == .bits, fontSize: style.fontSize, fullUnits: style.fullUnits,
+                            decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
+                            opacity: style.opacity, arrowGap: style.arrowGap)
+            .frame(maxWidth: .infinity, alignment: style.readingAlignment)
             .offset(y: style.offset(in: bodyHeight))
     }
 }
@@ -83,4 +91,9 @@ struct NotchNetworkToggle: View {
         .accessibilityValue(isOn ? text.on : text.off)
         .accessibilityIdentifier("notch.network.toggle")
     }
+}
+
+extension NotchNetworkStyle {
+    var fontWeight: Font.Weight { weight == "bold" ? .bold : (weight == "regular" ? .regular : .medium) }
+    var readingAlignment: Alignment { alignment == "leading" ? .leading : (alignment == "trailing" ? .trailing : .center) }
 }

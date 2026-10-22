@@ -808,8 +808,15 @@ enum DefaultsKey {
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchAgentsOptInMigrated = "notchAgentsOptInMigrated" // local migration marker; never backed up
     static let notchIdleContent = "notchIdleContent"
+    static let notchNavigationPosition = "notchNavigationPosition"
     static let notchNetworkPaused = "notchNetworkPaused"
     static let notchNetworkFullUnits = "notchNetworkFullUnits"
+    static let notchNetworkDecimals = "notchNetworkDecimals"
+    static let notchNetworkWeight = "notchNetworkWeight"
+    static let notchNetworkTint = "notchNetworkTint"
+    static let notchNetworkOpacity = "notchNetworkOpacity"
+    static let notchNetworkAlignment = "notchNetworkAlignment"
+    static let notchNetworkArrowGap = "notchNetworkArrowGap"
     static let notchNetworkFontSize = "notchNetworkFontSize"
     static let notchNetworkWidth = "notchNetworkWidth"
     static let notchNetworkOffset = "notchNetworkOffset"
@@ -1424,8 +1431,15 @@ enum Defaults {
         DefaultsKey.notchIncludeOtherPlayers: true,
         DefaultsKey.notchPreferredPlayer: "",
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
+        DefaultsKey.notchNavigationPosition: "top",
         DefaultsKey.notchNetworkPaused: false,
         DefaultsKey.notchNetworkFullUnits: false,
+        DefaultsKey.notchNetworkDecimals: 1,
+        DefaultsKey.notchNetworkWeight: "medium",
+        DefaultsKey.notchNetworkTint: "white",
+        DefaultsKey.notchNetworkOpacity: 0.9,
+        DefaultsKey.notchNetworkAlignment: "center",
+        DefaultsKey.notchNetworkArrowGap: 3.0,
         DefaultsKey.notchNetworkFontSize: 10.0,
         DefaultsKey.notchNetworkWidth: 72.0,
         DefaultsKey.notchNetworkOffset: 0.0,
@@ -1495,7 +1509,7 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitAlert: true,
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
-        DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchAgentsPriceUpdates: false,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,
@@ -1865,7 +1879,7 @@ enum Defaults {
         DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
-        DefaultsKey.recorderSharingEnabled: true,
+        DefaultsKey.recorderSharingEnabled: false,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
@@ -1930,7 +1944,7 @@ enum Defaults {
         DefaultsKey.screenshotUploadDuration: ScreenshotShareDuration.oneHour.rawValue,
         DefaultsKey.screenshotPreviewEnabled: true,
         DefaultsKey.screenshotPreviewDuration: ScreenshotSupport.defaultConfirmationPreviewDuration,
-        DefaultsKey.screenshotSharingEnabled: true,
+        DefaultsKey.screenshotSharingEnabled: false,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowDirectionalEnabled: false,

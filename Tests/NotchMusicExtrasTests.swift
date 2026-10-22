@@ -829,13 +829,10 @@ enum NotchMusicExtrasTests {
         defaults.set(true, forKey: DefaultsKey.notchBrowserCovers)
         let browserCoversOn = NotchBrowserArtworkSupport.isEnabled(in: defaults)
         let rihannaKey = NotchBrowserArtworkSupport.lookupKey(for: rihanna, defaults: defaults)
-        suite.expect(rihannaKey != nil
-               && rihannaKey != NotchBrowserArtworkSupport.lookupKey(for: zenSong("The Kid LAROI", "app.zen-browser.zen"),
-                                                                    defaults: defaults)
-               && NotchBrowserArtworkSupport.lookupKey(for: zenSong("Rihanna", "com.apple.Safari"), defaults: defaults) == nil,
-               "only a Firefox-family song is looked up, and two songs that share a title keep their own covers")
+        suite.expect(rihannaKey == nil && !browserCoversOn,
+                     "imported browser-cover consent cannot bypass the private build's network policy")
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
-        suite.expect(browserCoversOn && !NotchBrowserArtworkSupport.isEnabled(in: defaults)
+        suite.expect(!browserCoversOn && !NotchBrowserArtworkSupport.isEnabled(in: defaults)
                && NotchBrowserArtworkSupport.lookupKey(for: rihanna, defaults: defaults) == nil,
                "browser covers follow their own option and stop with the island")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
@@ -848,7 +845,7 @@ enum NotchMusicExtrasTests {
         suite.expect(NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)
                && NotchQueueSupport.isEnabled(in: defaults), "local lyrics and the native queue do not grant online lookup")
         defaults.set(true, forKey: DefaultsKey.notchLyricsOnline)
-        suite.expect(NotchLyricsSupport.onlineEnabled(in: defaults), "online lyrics require a separate explicit choice")
+        suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults), "imported online lyrics preference remains blocked")
         defaults.set(false, forKey: AppFeature.notchLyrics.availabilityKey)
         defaults.set(false, forKey: AppFeature.notchQueue.availabilityKey)
         suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),

@@ -11,6 +11,7 @@ import SwiftUI
 /// would cover the caret tracking below but needs macOS 15, a version past
 /// this app's floor.
 struct PlainTextEditor: NSViewRepresentable {
+    @Environment(\.notchPresentation) private var insideIsland
     /// Both shared with callers that overlay their own text on the editor,
     /// so a placeholder can be positioned from the same numbers as the
     /// first line rather than from literals that drift apart.
@@ -93,7 +94,7 @@ struct PlainTextEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = !insideIsland
         scroll.autohidesScrollers = true
         guard let textView = scroll.documentView as? NSTextView else { return scroll }
         textView.drawsBackground = false
@@ -138,6 +139,7 @@ struct PlainTextEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        nsView.hasVerticalScroller = !insideIsland
         guard let textView = nsView.documentView as? NSTextView else { return }
         context.coordinator.continuesLists = continuesLists
         context.coordinator.onCommandReturn = onCommandReturn

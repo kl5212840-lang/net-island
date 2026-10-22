@@ -130,8 +130,8 @@ struct NotchAgentsSettingsControls: View {
             }
             Text(text.valueNote).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            SettingsRow(symbol: "arrow.triangle.2.circlepath", title: text.priceUpdates, caption: priceCaption) {
-                Toggle(text.priceUpdates, isOn: $priceUpdates).labelsHidden().toggleStyle(.switch)
+            SettingsRow(symbol: "arrow.triangle.2.circlepath", title: text.priceUpdates, caption: NetworkPrivacyStrings.blocked) {
+                Toggle(text.priceUpdates, isOn: .constant(false)).disabled(true).labelsHidden().toggleStyle(.switch)
             }
 
             if claude {

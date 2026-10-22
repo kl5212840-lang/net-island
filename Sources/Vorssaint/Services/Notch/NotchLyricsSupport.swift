@@ -123,7 +123,7 @@ enum NotchLyricsSupport {
     }
 
     static func onlineEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
+        NetworkPrivacy.allowsRemoteMetadata && isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
     }
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {

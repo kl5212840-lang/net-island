@@ -20,7 +20,7 @@ final class AppUpdateFeedLoader: NSObject, URLSessionDataDelegate {
             return
         }
         let delegate = AppUpdateFeedLoader(completion: completion)
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
         configuration.urlCredentialStorage = nil

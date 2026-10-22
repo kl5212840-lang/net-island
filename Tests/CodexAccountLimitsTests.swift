@@ -220,6 +220,14 @@ enum CodexAccountLimitsTests {
                   timeout: TimeInterval = 3) -> Result<CodexAccountReading, CodexAccountUsageError> {
             CodexAccountUsageReader.read(profile, executable: cli, searchPath: nil, cancellation: cancellation, timeout: timeout)
         }
+        if !NetworkPrivacy.allowsAccountQueries {
+            for profile in profiles {
+                suite.expect((try? read(profile).get()) == nil
+                             && !FileManager.default.fileExists(atPath: URL(fileURLWithPath: profile.directory).appendingPathComponent("rpc.log").path),
+                             "disabled account checks never start the fixture process or write an RPC log")
+            }
+            return
+        }
         let readings = profiles.map { try? read($0).get() }
         suite.expect(readings.map { $0?.limits.windows.first?.usedPercent } == [14, 100]
                         && readings.map { $0?.limits.windows.last?.usedPercent } == [61, 41]

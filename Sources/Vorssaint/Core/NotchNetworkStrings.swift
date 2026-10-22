@@ -36,4 +36,25 @@ struct NotchNetworkStrings {
     var delay: String { text("Hide after", "持续低流量后隐藏", "持續低流量後隱藏") }
     var capsuleDrop: String { text("Capsule distance from top", "胶囊距屏幕顶部", "膠囊距螢幕頂部") }
     var reset: String { text("Reset network layout", "重置网速布局", "重設網速佈局") }
+    var presets: String { text("Quick presets", "快捷预设", "快捷預設") }
+    var smallPreset: String { text("Save space", "省空间", "省空間") }
+    var balancedPreset: String { text("Balanced", "均衡", "均衡") }
+    var clearPreset: String { text("Easy to read", "清晰", "清晰") }
+    var presetHint: String { text("Presets change appearance only. Your on/off and menu behavior choices stay as set.", "预设只调整外观，保留开关和菜单避让等行为设置。", "預設只調整外觀，保留開關和選單避讓等行為設定。") }
+    var decimals: String { text("Decimal places", "小数位数", "小數位數") }
+    var appearance: String { text("Font and layout", "字体与布局", "字體與佈局") }
+    var behavior: String { text("Menu space and automatic hiding", "菜单空间与自动隐藏", "選單空間與自動隱藏") }
+    var weight: String { text("Font weight", "字重", "字重") }
+    var regular: String { text("Regular", "常规", "標準") }
+    var medium: String { text("Medium", "中等", "中等") }
+    var bold: String { text("Bold", "加粗", "粗體") }
+    var color: String { text("Readout color", "读数颜色", "讀數顏色") }
+    var white: String { text("White", "白色", "白色") }
+    var directionColor: String { text("Blue download · Cyan upload", "下载蓝色 · 上传青色", "下載藍色 · 上傳青色") }
+    var opacity: String { text("Readout brightness", "读数明暗", "讀數明暗") }
+    var alignment: String { text("Alignment within each side", "每侧读数对齐", "每側讀數對齊") }
+    var leading: String { text("Left", "左对齐", "靠左") }
+    var center: String { text("Center", "居中", "置中") }
+    var trailing: String { text("Right", "右对齐", "靠右") }
+    var gap: String { text("Arrow spacing", "箭头与数值间距", "箭頭與數值間距") }
 }

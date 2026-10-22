@@ -763,7 +763,7 @@ final class AgentUsageService: ObservableObject {
     // Main thread. Every minute only while the page shows; failures back
     // off, and looking at the page does not bypass that.
     func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {
-        guard claudeLimitsDue(at: now, pageShows: pageShows) else { return }
+        guard NetworkPrivacy.allowsAccountQueries, claudeLimitsDue(at: now, pageShows: pageShows) else { return }
         claudeAccountAttempted = now
         claudeAccountChecking = true
         let request = AgentClaudeServer.Request()
@@ -853,7 +853,7 @@ final class AgentUsageService: ObservableObject {
     /// Looks for a newer price list at most once a day, and again a few hours
     /// after a failure. The last good list stays in use meanwhile.
     private func syncPrices() {
-        guard running, NotchAgentSupport.updatesPrices(), !pricesInFlight, let saved = pricesSaved else { return }
+        guard NetworkPrivacy.allowsRemoteMetadata, running, NotchAgentSupport.updatesPrices(), !pricesInFlight, let saved = pricesSaved else { return }
         let now = Date()
         let wait = pricesFailed ? AgentPriceSource.retryInterval : AgentPriceSource.refreshInterval
         guard now.timeIntervalSince(saved) >= AgentPriceSource.refreshInterval,

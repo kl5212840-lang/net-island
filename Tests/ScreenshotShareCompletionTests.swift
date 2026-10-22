@@ -405,8 +405,8 @@ enum ScreenshotShareCompletionTests {
             AppFeature.available = scenario != "feature off"
             let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
             _ = try? await gate.createLink(pngData: png, duration: .oneHour)
-            suite.expect(gate.session.uploads == (scenario == "enabled" ? 1 : 0)
-                         && gate.writes == (scenario == "enabled" ? 1 : 0),
+            suite.expect(gate.session.uploads == (NetworkPrivacy.allowsContentUploads && scenario == "enabled" ? 1 : 0)
+                         && gate.writes == (NetworkPrivacy.allowsContentUploads && scenario == "enabled" ? 1 : 0),
                          "service checks \(scenario) before persistence or any upload")
         }
         SharingDefaults.standard.enabled = true
@@ -419,6 +419,15 @@ enum ScreenshotShareCompletionTests {
         suite.expect(!failedCopy.closed && failedCopy.model.sharedRecord == record
                      && failedCopy.showingLink && failedCopy.dismissWork != nil,
                      "clipboard failure retains the existing link and copy controls in the preview")
+
+        if !NetworkPrivacy.allowsContentUploads {
+            let uploader = Uploader()
+            uploader.uploadLastCapture()
+            uploader.uploadLastCapture()
+            suite.expect(uploader.uploads == 0 && uploader.completion == nil,
+                         "even saved enabled shortcuts cannot start an upload in the private build")
+            return // Remaining cases cover the unavailable upstream upload workflow.
+        }
 
         for scenario in ["open", "closed", "released", "replaced", "standalone", "standalone replaced",
                          "history opened", "owner released", "feature off", "links off",

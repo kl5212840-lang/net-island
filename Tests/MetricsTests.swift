@@ -167,6 +167,7 @@ struct MetricsTests {
             }),
             ("network", {
                 NetworkFeatureTests.run(suite)
+                NetworkPrivacyTests.run(suite)
                 SpeedTestTests.run(suite)
                 NetworkAddressTests.run { suite.expect($0, $1) }
             }),

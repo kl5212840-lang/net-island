@@ -1011,7 +1011,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func activeRoles(isOn: (String) -> Bool,
                             isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
         allCases.filter { role in
-            role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
+            (role != .screenshotUpload || NetworkPrivacy.allowsContentUploads)
+                && role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
         }
     }
 

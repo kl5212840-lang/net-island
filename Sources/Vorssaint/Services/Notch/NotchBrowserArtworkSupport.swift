@@ -18,7 +18,7 @@ enum NotchBrowserArtworkSupport {
     /// The lookup reads the browser's saved session and goes online, so it
     /// waits for its own option in the music settings, which starts off.
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchBrowserCovers)
+        NetworkPrivacy.allowsRemoteMetadata && NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchBrowserCovers)
     }
 
     /// Whether the browser's own cover is missing or too small to show sharp.

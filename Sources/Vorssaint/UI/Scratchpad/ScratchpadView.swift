@@ -577,6 +577,7 @@ private struct ScratchpadResizeOverlay: NSViewRepresentable {
 /// not receive clicks reliably.
 /// Shared with the island's page, which shows the same formatted reading.
 struct MarkdownPreview: NSViewRepresentable {
+    @Environment(\.notchPresentation) private var insideIsland
     let blocks: [ScratchpadMarkdownBlock]
     var baseSize: CGFloat = PlainTextEditor.defaultFontSize
     /// How a task's checkbox tells VoiceOver it is done or not.
@@ -590,7 +591,7 @@ struct MarkdownPreview: NSViewRepresentable {
         // answers a click on a checkbox and points its cursor at it.
         let scroll = NSScrollView()
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = !insideIsland
         scroll.autohidesScrollers = true
         let textView = TaskPreviewTextView(frame: NSRect(origin: .zero, size: scroll.contentSize))
         textView.minSize = NSSize(width: 0, height: scroll.contentSize.height)
@@ -614,6 +615,7 @@ struct MarkdownPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        nsView.hasVerticalScroller = !insideIsland
         guard let textView = nsView.documentView as? NSTextView else { return }
         context.coordinator.onToggleTask = onToggleTask
         (textView as? TaskPreviewTextView)?.onToggleTask = onToggleTask

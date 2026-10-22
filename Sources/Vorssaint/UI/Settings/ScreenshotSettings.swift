@@ -204,9 +204,10 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
-                Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
+                Toggle(strings.shareEnabledToggle, isOn: .constant(false)).disabled(true)
+                Text(NetworkPrivacyStrings.blocked).font(.caption).foregroundStyle(.secondary)
                     .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
-                if sharingEnabled {
+                if NetworkPrivacy.allowsContentUploads && sharingEnabled {
                     Toggle(strings.uploadLastCapture, isOn: $uploadShortcutEnabled)
                         .onChange(of: uploadShortcutEnabled) { _, _ in service.syncWithPreferences() }
                     ShortcutPreferenceRow(role: .screenshotUpload,

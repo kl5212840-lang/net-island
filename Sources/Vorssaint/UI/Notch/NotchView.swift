@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchNavigationPosition) private var navigationPosition = "top"
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -309,6 +310,23 @@ struct NotchView: View {
             .padding(.top, geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
+            .overlay(alignment: .top) {
+                if service.modules.count > 1, !service.showingSections, !showsDetail,
+                   !service.showingCommandBar {
+                    // Dedicated 28-point gutters: neither page content nor a
+                    // system "always show scrollbars" preference can cover these.
+                    HStack(spacing: 0) {
+                        sectionArrow(forward: false)
+                        Spacer(minLength: 0)
+                        sectionArrow(forward: true)
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.top, NotchNavigationPosition.resolved(navigationPosition)
+                        .topInset(pageTop: NotchSectionNavigation.headerBoundary(in: geometry),
+                                  height: service.expandedSize.height))
+                }
+            }
+            .scrollIndicators(.hidden)
             .contentShape(Rectangle())
             .contextMenu { islandMenu }
             // Opening the island makes its panel key, so Keyboard navigation would ring
@@ -334,10 +352,29 @@ struct NotchView: View {
                     .padding(.bottom, 4)
                     .contentShape(Rectangle())
             }
-            .scrollIndicators(.automatic)
+            .scrollIndicators(.hidden)
             .notchScrollEdgeFade()
         } else {
             content
+        }
+    }
+
+    @ViewBuilder private func sectionArrow(forward: Bool) -> some View {
+        if let next = service.adjacentSection(forward: forward) {
+            let chinese = NotchNetworkStrings(l10n.language).chinese
+            let action = forward ? (chinese ? "下一个分区" : "Next section") : (chinese ? "上一个分区" : "Previous section")
+            let title = action + ": " + next.title(l10n.language)
+            Button { service.cycleSection(forward: forward) } label: {
+                Image(systemName: forward ? "chevron.right" : "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .frame(width: 24, height: 44)
+                    .background(.white.opacity(0.06), in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
+            .help(title).accessibilityLabel(title)
+            .accessibilityIdentifier(forward ? "notch.section.next" : "notch.section.previous")
         }
     }
 

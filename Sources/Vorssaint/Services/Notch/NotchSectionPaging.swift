@@ -3,6 +3,41 @@
 
 import Foundation
 
+enum NotchNavigationPosition: String, CaseIterable {
+    case top, center, bottom
+
+    static func resolved(_ value: String) -> Self { Self(rawValue: value) ?? .top }
+
+    /// Keep the 44-point target below the header and clear of the lower curve.
+    func topInset(pageTop: CGFloat, height: CGFloat) -> CGFloat {
+        let lower = max(pageTop, height - 44 - 28)
+        let upper = min(pageTop + 20, lower)
+        switch self {
+        case .top: return upper
+        case .center: return (upper + lower) / 2
+        case .bottom: return lower
+        }
+    }
+}
+
+/// The checked, ordered pages form a ring; unavailable pages never enter it.
+enum NotchSectionNavigation {
+    /// A shared full-row header keeps the target still when one page has no
+    /// toolbar or another wraps its controls around the camera.
+    static func headerBoundary(in geometry: NotchGeometry) -> CGFloat {
+        var header = geometry
+        header.pageTop = .row
+        header.requiresFullWidthHeader = true
+        return header.pageTopInset
+    }
+
+    static func neighbor<T: Equatable>(of selected: T, in pages: [T], forward: Bool) -> T? {
+        guard pages.count > 1 else { return nil }
+        guard let index = pages.firstIndex(of: selected) else { return pages.first }
+        return pages[(index + (forward ? 1 : pages.count - 1)) % pages.count]
+    }
+}
+
 /// The gallery rests on a row boundary at all times: rows step whole, and a
 /// highlighted tile pulls its row into view with the least movement.
 enum NotchSectionPaging {

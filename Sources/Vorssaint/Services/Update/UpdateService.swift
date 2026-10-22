@@ -134,7 +134,7 @@ final class UpdateService: ObservableObject {
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+        NetworkPrivacy.offlineSession.dataTask(with: request) { [weak self] data, _, error in
             guard let self else { return }
             DispatchQueue.main.async {
                 self.lastChecked = Date()
@@ -308,7 +308,7 @@ final class UpdateService: ObservableObject {
             }
             return
         }
-        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        let session = URLSession(configuration: NetworkPrivacy.offlineConfiguration(), delegate: delegate, delegateQueue: nil)
         downloadSession = session
         let task = session.dataTask(with: downloadURL)
         task.resume()

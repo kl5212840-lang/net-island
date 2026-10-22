@@ -31,6 +31,7 @@ struct GeneralSettings: View {
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }
+                NetworkPrivacySettings()
                 feedbackCard
             }
             .frame(maxWidth: 760)
@@ -151,7 +152,7 @@ struct GeneralSettings: View {
                         caption: feedbackStrings.sectionCaption) {
                 Button(feedbackStrings.openButton) {
                     appDelegate()?.openFeedbackWindow()
-                }
+                }.disabled(!NetworkPrivacy.allowsContentUploads).help(NetworkPrivacyStrings.blocked)
             }
         }
     }

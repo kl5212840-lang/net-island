@@ -10,6 +10,7 @@ import SwiftUI
 /// out what is on screen and the rest as it scrolls. Read only, selectable,
 /// so ⌘C on a fragment keeps working.
 struct ClipboardTextPreview: NSViewRepresentable {
+    @Environment(\.notchPresentation) private var insideIsland
     let text: String
     var font: NSFont = .systemFont(ofSize: 12)
 
@@ -24,7 +25,7 @@ struct ClipboardTextPreview: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = !insideIsland
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
         guard let textView = scroll.documentView as? NSTextView else { return scroll }
@@ -42,6 +43,7 @@ struct ClipboardTextPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        scroll.hasVerticalScroller = !insideIsland
         guard let textView = scroll.documentView as? NSTextView else { return }
         if textView.string != text {
             textView.string = text

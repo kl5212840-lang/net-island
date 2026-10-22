@@ -195,6 +195,16 @@ enum AgentCodexResetTests {
                                          base: ["PATH": "/usr/bin:/bin", "STAND_IN": mode])
         }
 
+        if !NetworkPrivacy.allowsAccountQueries {
+            suite.expect(AgentCodexConversation(server, environment: environment("plan"), timeout: 5) == nil,
+                         "private build refuses to launch even a valid account CLI")
+            suite.expect(AgentCodexServer.check(server, environment: environment("plan")) == .failure(.unreachable),
+                         "account checks cannot bypass the CLI gate")
+            let denied = AgentCodexServer.redeem(server, environment: environment("plan"), credit: "only", key: "denied")
+            suite.expect(denied.outcome == .failure(.unreachable) && denied.summary == nil,
+                         "account mutations are also blocked")
+            return
+        }
         let quiet = AgentCodexConversation(server, environment: environment("plan"), timeout: 5)
         let introduced = quiet?.start()
         quiet?.end()

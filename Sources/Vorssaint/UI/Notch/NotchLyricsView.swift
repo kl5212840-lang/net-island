@@ -93,12 +93,15 @@ struct NotchLyricsView: View {
     /// An import that read no timed lines fails even with online lookup off,
     /// so the failure stays above the disclosure the next step needs.
     private var emptyMessage: String {
+        if !NetworkPrivacy.allowsRemoteMetadata { return NetworkPrivacyStrings.localLyrics }
         let reason: String? = service.state == .failed ? text.failed : online ? text.unavailable : nil
         return [reason, online ? nil : text.onlineHint].compactMap { $0 }.joined(separator: "\n")
     }
 
     @ViewBuilder private var nextStep: some View {
-        if online {
+        if !NetworkPrivacy.allowsRemoteMetadata {
+            EmptyView()
+        } else if online {
             NotchPillButton(title: text.retry, prominent: true, action: service.retry)
         } else {
             NotchPillButton(title: text.online, prominent: true) { online = true }

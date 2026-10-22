@@ -365,7 +365,7 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
     }
 
     static func load(_ url: URL, maximumBytes: Int = NotchLyricsSupport.maximumBytes, completion: @escaping (NotchLyricsDownloadResult) -> Void) -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 15
         configuration.urlCache = nil

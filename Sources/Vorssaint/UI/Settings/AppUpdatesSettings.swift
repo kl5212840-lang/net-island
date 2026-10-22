@@ -19,6 +19,7 @@ struct AppUpdatesSettings: View {
 
     var body: some View {
         Form {
+            Section { Text(NetworkPrivacyStrings.blocked).font(.callout) }
             Section(text.pageTitle) {
                 Text(text.caption)
                     .font(.caption)
@@ -76,6 +77,7 @@ struct AppUpdatesSettings: View {
                 Toggle(text.showInPanel, isOn: $showInPanel)
             }
         }
+        .disabled(!NetworkPrivacy.allowsRemoteMetadata)
         .formStyle(.grouped)
         .onAppear { updates.checkIfNeeded() }
     }

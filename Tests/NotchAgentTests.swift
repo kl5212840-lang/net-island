@@ -3147,9 +3147,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "AI preferences travel in backups, with Agents opt-in and prices kept current when enabled")
-        suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == false,
+                     "AI preferences travel in backups with agents opt-in and remote price updates disabled")
+        suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "private build uses local prices")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
         suite.expect(AppFeature.notchAgents.group == .dynamicIsland && AppFeature.notchAgents.permissions.isEmpty

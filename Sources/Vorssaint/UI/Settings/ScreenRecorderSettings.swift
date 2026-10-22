@@ -153,8 +153,9 @@ struct ScreenRecordingCaptureSettings: View {
             }
 
             Section {
-                Toggle(screenshotStrings.shareEnabledToggle, isOn: $sharingEnabled)
-                if sharingEnabled {
+                Toggle(screenshotStrings.shareEnabledToggle, isOn: .constant(false)).disabled(true)
+                Text(NetworkPrivacyStrings.blocked).font(.caption).foregroundStyle(.secondary)
+                if NetworkPrivacy.allowsContentUploads && sharingEnabled {
                     Text(shareStrings.caption)
                         .font(.caption)
                         .foregroundStyle(.secondary)

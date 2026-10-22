@@ -192,7 +192,7 @@ struct MenuPanelView: View {
                 else { sectionNavigation }
             }
             .frame(height: 38)
-            OverlayScrollView(measuredHeight: $navigableContentHeight) {
+            OverlayScrollView(measuredHeight: $navigableContentHeight, showsIndicators: false) {
                 Group {
                     if let selectedMetric { MetricDetailView(kind: selectedMetric) }
                     else { section(for: activeSection, collapsible: false) }
@@ -2487,14 +2487,17 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     @Binding var measuredHeight: CGFloat
     let content: Content
 
-    init(measuredHeight: Binding<CGFloat>, @ViewBuilder content: () -> Content) {
+    private let showsIndicators: Bool
+
+    init(measuredHeight: Binding<CGFloat>, showsIndicators: Bool = true, @ViewBuilder content: () -> Content) {
+        self.showsIndicators = showsIndicators
         _measuredHeight = measuredHeight
         self.content = content()
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = showsIndicators
         scroll.hasHorizontalScroller = false
         scroll.scrollerStyle = .overlay
         scroll.autohidesScrollers = true
@@ -2517,6 +2520,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        scroll.hasVerticalScroller = showsIndicators
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
         host.rootView = content

@@ -450,11 +450,11 @@ final class NotchService: ObservableObject {
 
 #if VORSSAINT_DEVELOPMENT
     /// Capture the real view hierarchy without starting application services.
-    func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool) {
+    func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool, selected: NotchModule = .tools) {
         self.geometry = geometry
         self.expanded = expanded
-        modules = [.tools]
-        selected = .tools
+        modules = [.system, .tools]
+        self.selected = selected
         homeControls = []
     }
 #endif
@@ -1919,6 +1919,15 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
+    }
+
+    func adjacentSection(forward: Bool) -> NotchModule? {
+        NotchSectionNavigation.neighbor(of: selected, in: modules, forward: forward)
+    }
+
+    func cycleSection(forward: Bool) {
+        guard let next = adjacentSection(forward: forward) else { return }
+        select(next)
     }
 
     /// The pad lives in the island when its page is on; otherwise the

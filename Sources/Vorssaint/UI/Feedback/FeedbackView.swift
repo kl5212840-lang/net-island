@@ -25,7 +25,7 @@ struct FeedbackView: View {
     private var count: Int { message.utf16.count }
     private var canSend: Bool {
         let trimmedCount = message.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count
-        return trimmedCount >= 10 && count <= 2_000 && !isSending
+        return NetworkPrivacy.allowsContentUploads && trimmedCount >= 10 && count <= 2_000 && !isSending
     }
 
     var body: some View {
@@ -34,6 +34,9 @@ struct FeedbackView: View {
             Divider()
             if wasSent {
                 sentView
+            } else if !NetworkPrivacy.allowsContentUploads {
+                Text(NetworkPrivacyStrings.blocked).padding(24)
+                Spacer()
             } else {
                 form
             }

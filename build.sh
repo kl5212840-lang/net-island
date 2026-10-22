@@ -311,6 +311,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchKeepAwakeSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSupport.swift
         Sources/Vorssaint/Services/Notch/NotchNetworkSupport.swift
+        Sources/Vorssaint/Core/NetworkPrivacy.swift
         Sources/Vorssaint/Core/NotchNetworkStrings.swift
         Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift

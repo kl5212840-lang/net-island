@@ -100,7 +100,7 @@ enum ScreenshotFeatureTests {
                     uploadDefaults.set(editEnabled, forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
                     uploadDefaults.set(uploadEnabled, forKey: DefaultsKey.screenshotUploadShortcutEnabled)
                     uploadDefaults.set(sharingEnabled, forKey: DefaultsKey.screenshotSharingEnabled)
-                    let canUpload = uploadEnabled && sharingEnabled
+                    let canUpload = NetworkPrivacy.allowsContentUploads && uploadEnabled && sharingEnabled
                     suite.expect(ScreenshotSharingSupport.uploadShortcutEnabled(in: uploadDefaults) == canUpload,
                                  "uploads require both the shortcut and sharing to be enabled")
                     suite.expect(ScreenshotSharingSupport.retainsLatestCapture(in: uploadDefaults)
@@ -3628,8 +3628,8 @@ enum ScreenshotFeatureTests {
                 && !capturesGoToShelf(option: true, installed: true, on: false)
                 && !capturesGoToShelf(option: true, installed: false, on: true),
                "captures go to the shelf only with the option on and the shelf installed and switched on")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
-               "temporary screenshot links preserve their existing availability by default")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == false,
+               "temporary screenshot uploads default to disabled")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
                 == ScreenshotSupport.Tool.defaultOrderStorage,
                "the screenshot rail ships in its useful numbered order")

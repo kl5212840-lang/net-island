@@ -196,7 +196,7 @@ enum NotchAgentSupport {
 
     /// Whether the public price list may be downloaded once a day.
     static func updatesPrices(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
+        NetworkPrivacy.allowsRemoteMetadata && (defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? false)
     }
 
     /// Whether anything shows or alerts on the plan limits: their alerts, the

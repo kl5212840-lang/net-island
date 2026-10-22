@@ -26,7 +26,7 @@ final class RecordingShareService: ObservableObject {
     private var removedRecordIDs = Set<String>()
 
     private init() {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.revocationConfiguration()
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpCookieAcceptPolicy = .never
@@ -34,7 +34,7 @@ final class RecordingShareService: ObservableObject {
         configuration.timeoutIntervalForRequest = 180
         configuration.timeoutIntervalForResource = 300
         configuration.waitsForConnectivity = false
-        session = URLSession(configuration: configuration)
+        session = URLSession(configuration: configuration, delegate: NetworkRevocationDelegate.shared, delegateQueue: nil)
         // An expiry that came due during sleep never triggers its timer: the
         // deadline below is armed on a clock that stops with the Mac, so a link
         // that ran out overnight stays listed as live for as long as the Mac
@@ -76,7 +76,7 @@ final class RecordingShareService: ObservableObject {
     func createLink(artifact: RecorderExporter.ShareArtifact,
                     duration: RecordingShareDuration) async throws -> RecordingShareRecord {
         defer { artifact.discard() }
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.recorderSharingEnabled) else {
+        guard NetworkPrivacy.allowsContentUploads, UserDefaults.standard.bool(forKey: DefaultsKey.recorderSharingEnabled) else {
             throw RecordingShareError.unavailable
         }
         let file = artifact.fileURL

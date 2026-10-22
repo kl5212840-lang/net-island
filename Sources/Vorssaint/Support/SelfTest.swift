@@ -108,6 +108,13 @@ enum SelfTest {
             }
         }
 
+        if NetworkPrivacy.allowsContentUploads || NetworkPrivacy.allowsRemoteMetadata || NetworkPrivacy.allowsAccountQueries {
+            failures.append("personal privacy policy permits remote user data")
+        }
+        if NotchLyricsSupport.onlineEnabled() || NotchBrowserArtworkSupport.isEnabled() {
+            failures.append("imported preferences re-enabled remote media lookups")
+        }
+
         UserDefaults.standard.set("ok", forKey: "selftest")
         if UserDefaults.standard.string(forKey: "selftest") != "ok" {
             failures.append("UserDefaults")

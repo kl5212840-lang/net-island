@@ -7,6 +7,10 @@ import Foundation
 /// Runs the production lookup flow with delayed network replies. Browser files,
 /// image decoding and the network are replaced; no personal data is read.
 enum NotchBrowserArtworkLifecycleTests {
+    // This fixture exercises cancellation with in-memory downloads; it never
+    // uses the production session. NetworkPrivacyTests covers the hard gate.
+    enum NetworkPrivacy { static let allowsRemoteMetadata = true }
+
     struct NotchPlayback {
         struct Track {
             let title: String?

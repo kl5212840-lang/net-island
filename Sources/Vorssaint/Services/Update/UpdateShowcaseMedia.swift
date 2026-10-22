@@ -72,6 +72,7 @@ final class UpdateShowcaseMediaLoader: ObservableObject {
     private var session: URLSession?
 
     func load() {
+        guard NetworkPrivacy.allowsRemoteMetadata else { state = .failed; return }
         if case .ready = state { return }
         if case .loading = state { return }
 
@@ -125,7 +126,7 @@ final class UpdateShowcaseMediaLoader: ObservableObject {
             state = .failed
             return
         }
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 12
         configuration.timeoutIntervalForResource = 120

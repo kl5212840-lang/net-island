@@ -47,7 +47,7 @@ final class HomebrewManager: ObservableObject {
     private var ownershipLoads: [String: [(HomebrewPackage?) -> Void]] = [:]
     private var completedOperationCleanup: DispatchWorkItem?
     private lazy var analyticsSession: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration = NetworkPrivacy.offlineConfiguration()
         configuration.timeoutIntervalForRequest = 6
         configuration.timeoutIntervalForResource = 8
         return URLSession(configuration: configuration)
@@ -334,7 +334,7 @@ final class HomebrewManager: ObservableObject {
         let source = """
         tell application "Terminal"
             activate
-            do script \(appleScriptString(command))
+            do script \(appleScriptString("export HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_AUTO_UPDATE=1; " + command))
         end tell
         """
         // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
@@ -512,6 +512,7 @@ final class HomebrewManager: ObservableObject {
     }
 
     private func loadPopularityIfNeeded(kind: HomebrewPackageKind) {
+        guard NetworkPrivacy.allowsRemoteMetadata else { return }
         if popularityCache[kind]?.isFresh == true {
             applyPopularityToCurrentSearch(kind: kind)
             return

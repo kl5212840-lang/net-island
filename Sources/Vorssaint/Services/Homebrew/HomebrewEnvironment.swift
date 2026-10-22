@@ -13,8 +13,8 @@ enum HomebrewEnvironment {
     /// exports. The first read runs the login shell and may take up to twice
     /// `loginShellTimeout`, so it belongs on a work queue; a shell that fails
     /// or stalls contributes nothing and brew runs as before.
-    static let forBrew: [String: String] = ProcessInfo.processInfo.environment
-        .merging(exportsFromLoginShell(shellPath: HomebrewCommandBuilder.currentShellPath)) { _, shell in shell }
+    static let forBrew: [String: String] = NetworkPrivacy.brewEnvironment(ProcessInfo.processInfo.environment
+        .merging(exportsFromLoginShell(shellPath: HomebrewCommandBuilder.currentShellPath)) { _, shell in shell })
 
     static let loginShellTimeout: TimeInterval = 10
 

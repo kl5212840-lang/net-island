@@ -30,7 +30,7 @@ enum NotchTests {
         suite.expect(NotchNetworkSupport.avoidsMenus(in: defaults), "network can yield independently of activity coverage")
         NotchNetworkSupport.toggle(in: defaults)
         suite.expect(!NotchNetworkSupport.avoidsMenus(in: defaults), "a paused readout does not change other activities' menu policy")
-        for font in 9...14 {
+        for font in 9...16 {
             for width in stride(from: 64, through: 120, by: 8) {
                 let style = NotchNetworkStyle(fontSize: Double(font), wingWidth: Double(width), verticalOffset: 3)
                 suite.expect(style.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: style.fontSize),
@@ -50,11 +50,21 @@ enum NotchTests {
                      && NotchNetworkFormat.reading(nil, fullUnits: true) == "—"
                      && NotchNetworkFormat.reading(.nan, fullUnits: true) == "—",
                      "full units keep measured zero distinct from unknown samples")
-        for font in 9...14 {
+        for font in 9...16 {
             let full = NotchNetworkStyle(fontSize: Double(font), wingWidth: 64, fullUnits: true)
             suite.expect(full.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: full.fontSize, fullUnits: true)
-                         && full.wingWidth <= 144, "precise units reserve room at every supported font size")
+                         && full.wingWidth <= 180, "precise units reserve room at every supported font size")
         }
+        for decimals in 0...2 {
+            let expected = ["45 KB/s", "45.0 KB/s", "45.00 KB/s"][decimals]
+            suite.expect(NotchNetworkFormat.reading(45 * 1024, fullUnits: true, decimals: decimals, locale: english) == expected,
+                         "precision selection preserves complete per-second units")
+        }
+        let custom = NotchNetworkStyle(fontSize: 16, wingWidth: 64, fullUnits: true, decimals: 2,
+                                       weight: "invalid", tint: "invalid", opacity: .nan, alignment: "invalid", arrowGap: .infinity)
+        suite.expect(custom.weight == "medium" && custom.tint == "white" && custom.opacity == 0.9
+                     && custom.alignment == "center" && custom.arrowGap == 3 && custom.wingWidth <= 180,
+                     "invalid appearance imports sanitize while the largest precise layout still fits")
         var gate = NotchNetworkActivity()
         suite.expect(gate.update(download: nil, upload: nil, threshold: 1024, delay: 10, now: 0), "pending data is not mistaken for idle traffic")
         suite.expect(gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 1), "the first quiet sample starts a grace period")
