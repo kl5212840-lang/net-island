@@ -2222,6 +2222,7 @@ struct NotchNoticeWings: Equatable {
 
 struct NotchGeometry: Equatable {
     let screen: CGRect
+    var networkStyle = NotchNetworkStyle()
     /// How far the island's centre sits right of the camera's: a closed
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
@@ -2407,14 +2408,14 @@ struct NotchGeometry: Equatable {
     /// leave too little room, omit both readings rather than clipping one.
     func restingWingWidth(for content: NotchIdleContent) -> CGFloat {
         guard content == .network else { return restingWingWidth }
-        return (compactSideRoom ?? 0) >= 72 ? 72 : 0
+        return (compactSideRoom ?? 0) >= networkStyle.wingWidth ? networkStyle.wingWidth : 0
     }
     var collapsed: CGSize {
         CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: stripHeight)
     }
     func restingSize(showsContent: Bool, content: NotchIdleContent = .none) -> CGSize {
         if content == .network, floats {
-            let width = 144 + NotchCapsuleLayout.side(self) * 2 + NotchCapsuleLayout.endPadding * 2
+            let width = networkStyle.wingWidth * 2 + NotchCapsuleLayout.side(self) * 2 + NotchCapsuleLayout.endPadding * 2
             return CGSize(width: min(screen.width - 24, width), height: stripHeight)
         }
         if showsContent {

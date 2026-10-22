@@ -9,6 +9,8 @@ struct NotchNetworkReadout: View {
     let bytesPerSecond: Double?
     var upload = false
     var inBits = false
+    var fontSize: CGFloat = 10
+    var fullUnits = false
     @ObservedObject private var l10n = L10n.shared
 
     private var rate: Double? {
@@ -16,15 +18,15 @@ struct NotchNetworkReadout: View {
     }
     private var title: String { upload ? l10n.s.networkUpload : l10n.s.networkDownload }
     private var detail: String {
-        title + ": " + (rate.map { MetricFormat.networkRate($0, inBits: inBits) } ?? "—")
+        title + ": " + NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: true)
     }
 
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: upload ? "arrow.up" : "arrow.down")
-                .font(.system(size: 9, weight: .semibold))
-            Text(rate.map { MetricFormat.networkRateCompact($0, inBits: inBits) } ?? "—")
-                .font(.system(size: 10, weight: .medium)).monospacedDigit()
+                .font(.system(size: max(8, fontSize - 1), weight: .semibold))
+            Text(NotchNetworkFormat.reading(rate, inBits: inBits, fullUnits: fullUnits))
+                .font(.system(size: fontSize, weight: .medium)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.85)
         }
         .foregroundStyle(.white.opacity(0.9))
@@ -38,11 +40,47 @@ struct NotchNetworkReadout: View {
 /// animate the island. The persisted unit follows the existing Network panel.
 struct NotchNetworkWing: View {
     var upload = false
+    var style = NotchNetworkStyle()
+    var bodyHeight: CGFloat = 24
     @ObservedObject private var monitor = SystemMonitor.shared
     @AppStorage(DefaultsKey.networkSpeedUnit) private var unit = NetworkSpeedUnit.bytes
 
     var body: some View {
         NotchNetworkReadout(bytesPerSecond: upload ? monitor.snapshot.netUpBytesPerSec : monitor.snapshot.netDownBytesPerSec,
-                            upload: upload, inBits: unit == .bits)
+                            upload: upload, inBits: unit == .bits, fontSize: style.fontSize, fullUnits: style.fullUnits)
+            .offset(y: style.offset(in: bodyHeight))
+    }
+}
+
+
+/// Mounted in the open island's header, including while the readout is off.
+struct NotchNetworkToggle: View {
+    @ObservedObject var service: NotchService = .shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchIdleContent) private var idle = ""
+    @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
+    var compact = false
+    private var text: NotchNetworkStrings { .init(l10n.language) }
+    private var isOn: Bool { idle == "network" && !paused && AppFeature.monitorNetwork.isAvailable }
+
+    var body: some View {
+        Button(action: service.toggleNetworkReadout) {
+            HStack(spacing: 5) {
+                Image(systemName: isOn ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
+                    .font(.system(size: 13, weight: .medium))
+                if !compact { Text(text.quickTitle).font(.system(size: 11, weight: .medium)) }
+            }
+            .foregroundStyle(isOn ? .white : .white.opacity(0.65))
+            .padding(.horizontal, compact ? 7 : 9)
+            .frame(height: 26)
+            .background(.white.opacity(isOn ? 0.16 : 0.06), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 13, lifts: false))
+        .disabled(!AppFeature.monitorNetwork.isAvailable)
+        .help(text.quickHint)
+        .accessibilityLabel(text.title)
+        .accessibilityValue(isOn ? text.on : text.off)
+        .accessibilityIdentifier("notch.network.toggle")
     }
 }

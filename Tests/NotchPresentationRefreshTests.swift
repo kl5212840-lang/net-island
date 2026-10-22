@@ -158,6 +158,7 @@ enum NotchPresentationRefreshContract {
     }
     class State: ObservableObject {
         var idleContent = NotchIdleContent.none
+        var networkTrafficVisible = true
         var consumerSyncs = 0
         var noticeFitsInPlace = false
         var activitySelection = NotchActivitySelection()
@@ -437,6 +438,16 @@ enum NotchPresentationRefreshContract {
         network.refreshPresentation(animated: false)
         suite.expect(network.consumerSyncs >= networkSyncs + 2,
                      "activity arrival and departure both reconcile the resting network consumer")
+        network.idleContent = .none
+        network.networkTrafficVisible = false
+        let hiddenSyncs = network.consumerSyncs
+        network.refreshPresentation(animated: false)
+        suite.expect(network.consumerSyncs > hiddenSyncs,
+                     "a traffic-hidden readout still reconciles its detection demand")
+        let hiddenPresentation = network.windowHost?.transitions.count ?? 0
+        network.applyMenuSpace(100)
+        suite.expect((network.windowHost?.transitions.count ?? 0) > hiddenPresentation,
+                     "menu room changes reconcile traffic detection even while the readout stays hidden")
         let outlined = Service()
         outlined.expanded = false
         UserDefaults.standard.outline = true

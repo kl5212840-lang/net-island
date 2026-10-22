@@ -98,6 +98,7 @@ enum NotchMusicVisibilityTests {
         var hasAgentActivity = false
         var hasKeepAwakeActivity = false
         var awaitsTrackNotice = false
+        var networkTrafficVisible = true
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
@@ -128,6 +129,8 @@ enum NotchMusicVisibilityTests {
         var namedMusicWings: NotchNoticeWings?
         var musicStripHeldSong: NotchPlaybackContext?
         var showsCopies = false
+        var copiesHaveRoom = true
+        var networkCopiesHaveRoom: Bool { showsCopies && copiesHaveRoom }
         var captureControlsLayout: NotchCaptureControlsLayout {
             NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
         }
@@ -210,6 +213,11 @@ enum NotchMusicVisibilityTests {
         network.syncVisibleConsumers()
         suite.expect(!monitor.detailNeeds.network, "an activity replacing the reading on all copies releases network sampling")
         network.hasTimerActivity = false
+        network.networkTrafficVisible = false
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network && network.idleContent == .none,
+                     "traffic-auto-hidden readouts retain samples so the next transfer can reveal them")
+        network.networkTrafficVisible = true
         network.showsCopies = false
         network.expanded = false
         network.hasTimerActivity = true
@@ -254,6 +262,13 @@ enum NotchMusicVisibilityTests {
         network.syncVisibleConsumers()
         suite.expect(monitor.detailNeeds.network && network.idleContent == .network,
                      "reinstalling network monitoring restores the saved idle choice")
+        defaults.set(true, forKey: DefaultsKey.notchNetworkPaused)
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network && network.idleContent == .none,
+                     "the quick pause releases network sampling while preserving the island")
+        defaults.set(false, forKey: DefaultsKey.notchNetworkPaused)
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "resuming from the header restores sampling immediately")
         network.running = false
         network.syncVisibleConsumers()
         suite.expect(!monitor.detailNeeds.network, "turning the island off releases its network consumer")

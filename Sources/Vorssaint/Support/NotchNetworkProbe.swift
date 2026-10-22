@@ -19,6 +19,14 @@ enum NotchNetworkProbe {
         var overrides: [String: Any] = [
             DefaultsKey.notchEnabled: true,
             DefaultsKey.notchIdleContent: "network",
+            DefaultsKey.notchNetworkPaused: arguments.contains("--paused"),
+            DefaultsKey.notchNetworkFullUnits: arguments.contains("--full"),
+            DefaultsKey.notchNetworkAutoHide: false,
+            DefaultsKey.notchNetworkAvoidMenus: false,
+            DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 14.0 : 10.0,
+            DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 144.0 : 72.0,
+            DefaultsKey.notchNetworkOffset: arguments.contains("--large") ? 3.0 : 0.0,
+            DefaultsKey.notchNetworkUploadOnLeft: false,
             DefaultsKey.notchMascotEnabled: false,
             DefaultsKey.notchAgentsEnabled: false,
             DefaultsKey.notchShowPlayingMusic: false,
@@ -47,10 +55,13 @@ enum NotchNetworkProbe {
         }
         print("NETWORK LIVE down=\(snapshot.netDownBytesPerSec ?? -1) B/s up=\(snapshot.netUpBytesPerSec ?? -1) B/s")
 
-        let hanging = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
+        var hanging = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                     safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
-        let capsule = NotchGeometry(screen: hanging.screen, safeAreaTop: 0, cameraWidth: 0,
+        hanging.networkStyle = .stored()
+        hanging.compactSideRoom = max(100, hanging.networkStyle.wingWidth)
+        var capsule = NotchGeometry(screen: hanging.screen, safeAreaTop: 0, cameraWidth: 0,
                                     menuBarHeight: 24, compactSideRoom: 100, silhouette: .capsule)
+        capsule.networkStyle = .stored()
         let hangingSize = hanging.restingSize(showsContent: true, content: .network)
         let capsuleSize = capsule.restingSize(showsContent: false, content: .network)
         let readouts = VStack(alignment: .leading, spacing: 20) {
@@ -62,21 +73,33 @@ enum NotchNetworkProbe {
                 .frame(width: capsuleSize.width, height: capsuleSize.height)
                 .background(.black, in: Capsule())
             HStack(spacing: 24) {
-                NotchNetworkReadout(bytesPerSecond: nil)
-                NotchNetworkReadout(bytesPerSecond: 0)
-                NotchNetworkReadout(bytesPerSecond: 1_234_567)
-                NotchNetworkReadout(bytesPerSecond: 125_000_000, upload: true, inBits: true)
+                NotchNetworkReadout(bytesPerSecond: nil, fullUnits: arguments.contains("--full"))
+                NotchNetworkReadout(bytesPerSecond: 0, fullUnits: arguments.contains("--full"))
+                NotchNetworkReadout(bytesPerSecond: 1_234_567, fullUnits: arguments.contains("--full"))
+                NotchNetworkReadout(bytesPerSecond: 125_000_000, upload: true, inBits: true, fullUnits: arguments.contains("--full"))
             }.padding(12).background(.black, in: RoundedRectangle(cornerRadius: 8))
             Text("Live views above · Formatting samples below").font(.system(size: 11)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(24)
         .background(Color(nsColor: .windowBackgroundColor))
-        capture(AnyView(readouts), size: CGSize(width: 500, height: 260),
+        capture(AnyView(readouts), size: CGSize(width: 540, height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
-        let settings = NotchSettings().restingContentCard.padding(20)
+        for width: CGFloat in [360, 600] {
+            let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                         layout: .custom, compactSideRoom: 100,
+                                         customWidth: Double(width), customHeight: 360)
+            NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true)
+            let size = NotchService.shared.surfaceSize
+            let header = NotchView(service: .shared).background(.black)
+            capture(AnyView(header), size: size, name: "network-header-\(language)-\(Int(width))", output: output, failures: &failures)
+        }
+        NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
+        overrides[DefaultsKey.notchNetworkAutoHide] = true
+        UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+        let settings = NotchNetworkSettings().padding(20)
             .background(Color(nsColor: .windowBackgroundColor))
         for width: CGFloat in [460, 760] {
-            capture(AnyView(settings), size: CGSize(width: width, height: 390),
+            capture(AnyView(settings), size: CGSize(width: width, height: 900),
                     name: "network-settings-\(language)-\(Int(width))", output: output, failures: &failures)
         }
         monitor.setNotchDetailNeeds(.none)

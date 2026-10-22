@@ -111,6 +111,9 @@ enum NotchScreenRefreshContract {
         var mascotWantsRoom = false
         var accessibilityGranted = true
         var coversMenus = false
+        var networkEnabled = false
+        var networkAvoidMenus = false
+        var dragPlaceholder = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
@@ -388,6 +391,19 @@ enum NotchScreenRefreshContract {
         covering.syncMenuSpaceMonitoring()
         suite.expect(covering.menuSpaceTimer == nil && covering.reads == 0 && covering.geometry.compactSideRoom == emptyBar,
                "granting Accessibility starts no reader for menus the island may cover")
+        covering.networkEnabled = true
+        covering.networkAvoidMenus = true
+        covering.syncMenuSpaceMonitoring()
+        suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
+                     "network avoidance measures menus even when other activities may cover them")
+        covering.notice = true
+        covering.syncMenuSpaceMonitoring()
+        suite.expect(covering.menuSpaceTimer == nil,
+                     "a notice still follows its original coverage setting")
+        covering.notice = nil
+        covering.networkEnabled = false
+        covering.networkAvoidMenus = false
+        covering.reads = 0
         covering.running = false
         let applied = covering.appliedRooms.count
         covering.syncMenuSpaceMonitoring()

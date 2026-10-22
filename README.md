@@ -8,6 +8,14 @@ In **Settings → Dynamic Island → Activity → When idle**, choose **Network*
 
 Timers, music and notices keep their existing priority. Network readings return when the island rests. Sampling stops while the readout is hidden and no other surface needs the data. If menu space is too narrow, both readings yield together.
 
+## Quick switch and network layout
+
+Open the island and use the **Speed** pill in its top row to pause or resume the idle readout; the island's context menu offers the same switch. Pausing keeps the layout choices and other activities, and releases the readout's network demand.
+
+The Activity page adds a Network readout card: font size (9–14 pt), fitted width per side, vertical reading offset, swapped upload/download positions, and bytes/bits units shared with the Network panel. Choose **Precise** format for complete readings such as `45.0 KB/s` or `1.0 Mbit/s`; compact format remains the default. Larger fonts keep a safe minimum width. A floating capsule also exposes its existing distance from the top edge; a physical camera stays fixed.
+
+**Yield to native menus** can hide network readings when space is tight, independently of the other activities' coverage setting. It needs Accessibility. **Hide during low traffic** waits for a configurable quiet period (default 10 seconds below 1 KB/s in both directions) and returns when either direction exceeds the threshold. This automatic mode keeps detecting network traffic while hidden. Both adaptation options start off to preserve the existing appearance.
+
 ## Menu-panel navigation
 
 Section switches retain the popover while their content and height settle, including a cold first layout. AppKit-initiated closes during that transition are vetoed; forced closes can recover without treating a slow internal click as stale or comparing it against the smaller page’s bounds. Outside clicks, Escape and the status-item toggle still dismiss normally. Recovery remains bounded.

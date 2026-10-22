@@ -808,6 +808,16 @@ enum DefaultsKey {
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchAgentsOptInMigrated = "notchAgentsOptInMigrated" // local migration marker; never backed up
     static let notchIdleContent = "notchIdleContent"
+    static let notchNetworkPaused = "notchNetworkPaused"
+    static let notchNetworkFullUnits = "notchNetworkFullUnits"
+    static let notchNetworkFontSize = "notchNetworkFontSize"
+    static let notchNetworkWidth = "notchNetworkWidth"
+    static let notchNetworkOffset = "notchNetworkOffset"
+    static let notchNetworkUploadOnLeft = "notchNetworkUploadOnLeft"
+    static let notchNetworkAvoidMenus = "notchNetworkAvoidMenus"
+    static let notchNetworkAutoHide = "notchNetworkAutoHide"
+    static let notchNetworkThreshold = "notchNetworkThreshold"
+    static let notchNetworkHideDelay = "notchNetworkHideDelay"
     static let notchHiddenControls = "notchHiddenControls"
     // Travels with the controls so old backups migrate and later choices survive.
     static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
@@ -1414,6 +1424,16 @@ enum Defaults {
         DefaultsKey.notchIncludeOtherPlayers: true,
         DefaultsKey.notchPreferredPlayer: "",
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
+        DefaultsKey.notchNetworkPaused: false,
+        DefaultsKey.notchNetworkFullUnits: false,
+        DefaultsKey.notchNetworkFontSize: 10.0,
+        DefaultsKey.notchNetworkWidth: 72.0,
+        DefaultsKey.notchNetworkOffset: 0.0,
+        DefaultsKey.notchNetworkUploadOnLeft: false,
+        DefaultsKey.notchNetworkAvoidMenus: false,
+        DefaultsKey.notchNetworkAutoHide: false,
+        DefaultsKey.notchNetworkThreshold: 1024.0,
+        DefaultsKey.notchNetworkHideDelay: 10.0,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchKeyboardLightControlHidden: false,

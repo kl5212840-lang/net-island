@@ -7,6 +7,73 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    private static func networkCustomizationContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-network-controls"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.set(true, forKey: AppFeature.monitorNetwork.availabilityKey)
+        defaults.set("none", forKey: DefaultsKey.notchIdleContent)
+        defaults.set(true, forKey: DefaultsKey.notchTimerEnabled)
+        defaults.set(96.0, forKey: DefaultsKey.notchNetworkWidth)
+        NotchNetworkSupport.toggle(in: defaults)
+        suite.expect(NotchNetworkSupport.isEnabled(in: defaults), "the header switch enables network from another idle choice")
+        NotchNetworkSupport.toggle(in: defaults)
+        suite.expect(!NotchNetworkSupport.isEnabled(in: defaults)
+                     && defaults.string(forKey: DefaultsKey.notchIdleContent) == "network"
+                     && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
+                     && defaults.double(forKey: DefaultsKey.notchNetworkWidth) == 96,
+                     "pausing keeps the saved network layout and other island activities")
+        NotchNetworkSupport.toggle(in: defaults)
+        suite.expect(NotchNetworkSupport.isEnabled(in: defaults), "a second click restores the readout")
+        defaults.set(true, forKey: DefaultsKey.notchNetworkAvoidMenus)
+        suite.expect(NotchNetworkSupport.avoidsMenus(in: defaults), "network can yield independently of activity coverage")
+        NotchNetworkSupport.toggle(in: defaults)
+        suite.expect(!NotchNetworkSupport.avoidsMenus(in: defaults), "a paused readout does not change other activities' menu policy")
+        for font in 9...14 {
+            for width in stride(from: 64, through: 120, by: 8) {
+                let style = NotchNetworkStyle(fontSize: Double(font), wingWidth: Double(width), verticalOffset: 3)
+                suite.expect(style.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: style.fontSize),
+                             "every width reserves readable space at its font size")
+                suite.expect(abs(style.offset(in: 16)) <= max(0, (16 - style.fontSize - 4) / 2),
+                             "vertical positioning stays inside even a short capsule")
+            }
+        }
+        let sanitized = NotchNetworkStyle(fontSize: .nan, wingWidth: .infinity, verticalOffset: -.infinity)
+        suite.expect(sanitized == NotchNetworkStyle(), "non-finite imported layout values use safe defaults")
+        let english = Locale(identifier: "en_US")
+        suite.expect(NotchNetworkFormat.reading(45 * 1024, fullUnits: true, locale: english) == "45.0 KB/s",
+                     "precise byte mode preserves the decimal and complete per-second unit")
+        suite.expect(NotchNetworkFormat.reading(125_000, inBits: true, fullUnits: true, locale: english) == "1.0 Mbit/s",
+                     "precise bit mode converts from bytes and explicitly spells per second")
+        suite.expect(NotchNetworkFormat.reading(0, fullUnits: true, locale: english) == "0 B/s"
+                     && NotchNetworkFormat.reading(nil, fullUnits: true) == "—"
+                     && NotchNetworkFormat.reading(.nan, fullUnits: true) == "—",
+                     "full units keep measured zero distinct from unknown samples")
+        for font in 9...14 {
+            let full = NotchNetworkStyle(fontSize: Double(font), wingWidth: 64, fullUnits: true)
+            suite.expect(full.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: full.fontSize, fullUnits: true)
+                         && full.wingWidth <= 144, "precise units reserve room at every supported font size")
+        }
+        var gate = NotchNetworkActivity()
+        suite.expect(gate.update(download: nil, upload: nil, threshold: 1024, delay: 10, now: 0), "pending data is not mistaken for idle traffic")
+        suite.expect(gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 1), "the first quiet sample starts a grace period")
+        suite.expect(gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 10), "brief pauses do not make the island flicker")
+        suite.expect(!gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 11), "sustained quiet traffic hides the readout")
+        suite.expect(!gate.update(download: .nan, upload: 0, threshold: 1024, delay: 10, now: 12), "invalid samples preserve the last visibility state")
+        suite.expect(gate.update(download: 0, upload: 2048, threshold: 1024, delay: 10, now: 13), "upload traffic alone reveals the readout immediately")
+        suite.expect(gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 14), "a transfer restarts the full quiet grace period")
+        suite.expect(!gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 24), "the next quiet stretch hides after its own deadline")
+        suite.expect(gate.update(download: 4096, upload: 0, threshold: 1024, delay: 10, now: 25), "download traffic also reveals it")
+        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32,
+                                     cameraWidth: 180, compactSideRoom: 100)
+        geometry.networkStyle = NotchNetworkStyle(fontSize: 14, wingWidth: 64)
+        suite.expect(geometry.restingSize(showsContent: true, content: .network).width == 180 + geometry.networkStyle.wingWidth * 2,
+                     "the host window grows with the fitted network font and width")
+        geometry.compactSideRoom = geometry.networkStyle.wingWidth - 1
+        suite.expect(geometry.restingWingWidth(for: .network) == 0, "a customized readout still yields both wings before clipping")
+    }
+
     private static func railContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-fan-only"
         let defaults = UserDefaults(suiteName: domain)!
@@ -599,8 +666,9 @@ enum NotchTests {
         let island = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
         let row = (island.components(separatedBy: "private func bandRow(").dropFirst().first ?? "")
             .components(separatedBy: "private func updateControl(").first ?? ""
-        let fallbacks = row.components(separatedBy: "HStack(spacing: 6) {").count - 1
-        let ends = row.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
+        let trailing = row.components(separatedBy: "} trailing: {").dropFirst().first ?? ""
+        let fallbacks = trailing.components(separatedBy: "HStack(spacing: 6) {").count - 1
+        let ends = trailing.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
         suite.expect(fallbacks == 4 && ends == fallbacks
                      && row.contains("if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }"),
                      "every fallback of the row's trailing side ends a wrapping page's controls with the sections button")
@@ -1664,6 +1732,7 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        networkCustomizationContracts(suite)
         shortcutContracts(suite)
         let previewStrip: CGFloat = 37
         suite.expect(NotchTranslucentTint.opacity(atDepth: previewStrip, stripHeight: previewStrip,

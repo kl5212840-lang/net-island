@@ -359,8 +359,11 @@ struct NotchView: View {
         // controls there stay mounted, so a search keeps its focus.
         return NotchBandRow(band: band, covered: feedback == nil ? nil : side) {
             if !wraps {
-                bandLeading(band)
-                items.leading
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { bandLeading(band); NotchNetworkToggle(service: service); items.leading }
+                    HStack(spacing: 6) { bandLeading(band); NotchNetworkToggle(service: service, compact: true); items.leading }
+                    HStack(spacing: 6) { bandLeading(band); items.leading }
+                }
             }
         } trailing: {
             if makesRoom {
@@ -438,6 +441,10 @@ struct NotchView: View {
                 Label(service.showingSections ? l10n.s.obBack : text.sectionsTitle, systemImage: "square.grid.2x2")
             }
         }
+        Button(action: service.toggleNetworkReadout) {
+            Label(NotchNetworkStrings(l10n.language).title, systemImage: NotchNetworkSupport.isEnabled() ? "checkmark.circle.fill" : "circle")
+        }
+        .disabled(!AppFeature.monitorNetwork.isAvailable)
         Button {
             service.pinned.toggle()
         } label: {
@@ -710,7 +717,7 @@ struct NotchRestingStrip: View {
                             NotchAgentRestingWing(leading: true)
                                 .padding(.leading, restingBatteryInset)
                         case .network:
-                            NotchNetworkWing()
+                            NotchNetworkWing(upload: geometry.networkStyle.uploadOnLeft, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
                                 .padding(.leading, restingBatteryInset)
                         case .none: EmptyView()
                         }
@@ -738,7 +745,7 @@ struct NotchRestingStrip: View {
                             NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
                         case .network:
-                            NotchNetworkWing(upload: true)
+                            NotchNetworkWing(upload: !geometry.networkStyle.uploadOnLeft, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
                                 .padding(.trailing, restingBatteryInset)
                         case .none: EmptyView()
                         }

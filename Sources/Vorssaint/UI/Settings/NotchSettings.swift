@@ -564,6 +564,7 @@ struct NotchSettings: View {
     private var activityPage: some View {
         VStack(alignment: .leading, spacing: 20) {
             restingContentCard
+            if idle == NotchIdleContent.network.rawValue { NotchNetworkSettings() }
             SettingsCard(title: editor.feedback) {
                 let volumeAvailable = AppFeature.mixer.isAvailable
                 let brightnessAvailable = AppFeature.brightness.isAvailable && brightnessControlEnabled
@@ -945,7 +946,10 @@ struct NotchSettings: View {
         let waits = reason != nil && !NotchSupport.canRest(with: item)
         let marked = restingChoice == item || (waits && idle == item.rawValue)
         return VStack(spacing: 6) {
-            Button { idle = item.rawValue } label: {
+            Button {
+                idle = item.rawValue
+                if item == .network { UserDefaults.standard.set(false, forKey: DefaultsKey.notchNetworkPaused) }
+            } label: {
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         if item == .none, restsWithMascot {

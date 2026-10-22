@@ -444,8 +444,52 @@ final class NotchService: ObservableObject {
 
     /// A Mac without a battery has no charge to show, so a saved battery
     /// choice rests empty there; playing music still shows as before.
+    @Published private(set) var networkTrafficVisible = true
+    private var networkActivity = NotchNetworkActivity()
+    private var networkPolicySignature = ""
+
+#if VORSSAINT_DEVELOPMENT
+    /// Capture the real view hierarchy without starting application services.
+    func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool) {
+        self.geometry = geometry
+        self.expanded = expanded
+        modules = [.tools]
+        selected = .tools
+        homeControls = []
+    }
+#endif
+
+    func toggleNetworkReadout() {
+        NotchNetworkSupport.toggle()
+        syncWithPreferences()
+    }
+
+    private func syncNetworkPolicy() {
+        let defaults = UserDefaults.standard
+        let signature = [String(NotchNetworkSupport.isEnabled()),
+                         String(defaults.bool(forKey: DefaultsKey.notchNetworkAutoHide)),
+                         String(defaults.double(forKey: DefaultsKey.notchNetworkThreshold)),
+                         String(defaults.double(forKey: DefaultsKey.notchNetworkHideDelay))].joined(separator: ":")
+        guard signature != networkPolicySignature else { return }
+        networkPolicySignature = signature
+        networkActivity = NotchNetworkActivity()
+        networkTrafficVisible = true
+    }
+
+    private func receiveNetworkSample(_ snapshot: SystemSnapshot) {
+        guard running, !suspended, NotchNetworkSupport.isEnabled(), UserDefaults.standard.bool(forKey: DefaultsKey.notchNetworkAutoHide) else { return }
+        let visible = networkActivity.update(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
+                                             threshold: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkThreshold),
+                                             delay: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkHideDelay),
+                                             now: ProcessInfo.processInfo.systemUptime)
+        guard visible != networkTrafficVisible else { return }
+        networkTrafficVisible = visible
+        refreshPresentation()
+    }
+
     var idleContent: NotchIdleContent {
         let content = NotchSupport.visibleIdleContent(isPlaying: !awaitsTrackNotice && NotchMusicService.shared.playback?.isPlaying == true)
+        if content == .network && (!NotchNetworkSupport.isEnabled(in: UserDefaults.standard) || !networkTrafficVisible) { return .none }
         return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
@@ -1104,6 +1148,7 @@ final class NotchService: ObservableObject {
     func syncWithPreferences() {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         guard NotchSupport.isEnabled() else { stop(); return }
+        syncNetworkPolicy()
         if !running {
             running = true
             installObservers()
@@ -1151,7 +1196,7 @@ final class NotchService: ObservableObject {
             + String(AppFeature.fanControl.isAvailable)
             + String(NotchSupport.routesShelf()) + String(NotchSupport.revealsShelfDrag())
             + String(NotchSupport.routesCaptureControls())
-            + String(NotchMascotSupport.isEnabled())
+            + String(NotchMascotSupport.isEnabled()) + networkPolicySignature
         if signature != settingsSignature {
             settingsSignature = signature
             bindEvents()
@@ -2619,7 +2664,7 @@ final class NotchService: ObservableObject {
             // Activity and notice changes can reveal the resting network
             // strip without opening or closing a page. Reconcile its demand
             // after the copies' visibility has settled, too.
-            if idleContent == .network { syncVisibleConsumers() }
+            if idleContent == .network || !networkTrafficVisible { syncVisibleConsumers() }
             flushMascotReaction()
             // Hidden until hover, the closed island shows no companion either,
             // so an activity bringing it into view has none to take over from.
@@ -3106,7 +3151,7 @@ final class NotchService: ObservableObject {
     /// the island may, or where there are none, and otherwise gives way.
     private func mirrorSideRoom(on screen: NSScreen, geometry: NotchGeometry) -> CGFloat? {
         let hasMenuBar = NSScreen.screensHaveSeparateSpaces || NSScreen.withMenuBar == screen
-        guard NotchSupport.coversMenus() || !hasMenuBar else { return nil }
+        guard (NotchSupport.coversMenus() && !(NotchNetworkSupport.avoidsMenus() && compactActivity == nil)) || !hasMenuBar else { return nil }
         return NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                            barHeight: geometry.menuBarHeight, occupied: [])
     }
@@ -3128,6 +3173,12 @@ final class NotchService: ObservableObject {
 
     /// Whether another display shows a copy of the closed island now.
     private var showsCopies: Bool { mirrors.values.contains { $0.model.shown } }
+
+    private var networkCopiesHaveRoom: Bool {
+        mirrors.values.contains {
+            $0.model.shown && ($0.model.geometry.floats || $0.model.geometry.restingWingWidth(for: .network) > 0)
+        }
+    }
 
     /// Only the copies ask which displays are in full screen, and only when
     /// the island hides there; the island asks for its own display.
@@ -3245,7 +3296,9 @@ final class NotchService: ObservableObject {
         // can change just because focus moves to another app or display.
         // A display without a menu bar, beside the main one when displays
         // share Spaces, has no menus to leave room for either.
-        if running, !suspended, NotchSupport.coversMenus() || !displayHasMenuBar {
+        let networkYields = NotchNetworkSupport.avoidsMenus() && compactActivity == nil && notice == nil
+            && !expanded && !peeking && captureControls == nil && !dragPlaceholder
+        if running, !suspended, (NotchSupport.coversMenus() && !networkYields) || !displayHasMenuBar {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
@@ -3265,7 +3318,7 @@ final class NotchService: ObservableObject {
         // room when one comes.
         let wanted = running && !suspended && (!hiddenUntilHover || NotchSupport.hiddenShowsActivity())
             && !expanded && captureControls == nil
-            && (idleContent != .none || compactActivity != nil || !geometry.isNotched || mascotWantsRoom)
+            && (idleContent != .none || NotchNetworkSupport.isEnabled() || compactActivity != nil || !geometry.isNotched || mascotWantsRoom)
         guard wanted else { stopMenuSpaceMonitoring(); return }
         guard menuSpaceTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readMenuSpace() }
@@ -3333,7 +3386,7 @@ final class NotchService: ObservableObject {
         let grows = (room ?? 0) > (geometry.compactSideRoom ?? 0)
         geometry.compactSideRoom = room
         // Losing a safe center must also hide an unchanged bare cutout.
-        if previousSize != surfaceSize || panel?.isVisible != true || room == nil {
+        if previousSize != surfaceSize || panel?.isVisible != true || room == nil || !networkTrafficVisible {
             refreshPresentation(animated: grows)
         }
     }
@@ -3445,7 +3498,7 @@ final class NotchService: ObservableObject {
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
             cameraWidth = max(0, right.minX - left.maxX)
         } else { cameraWidth = 0 }
-        return NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
+        var result = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
                              cameraWidth: cameraWidth,
                              layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .spacious,
                              menuBarHeight: menuBarMeasurements.height(
@@ -3459,6 +3512,8 @@ final class NotchService: ObservableObject {
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                              barEdge: 1 / max(1, screen.backingScaleFactor))
+        result.networkStyle = .stored()
+        return result
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
@@ -3936,6 +3991,11 @@ final class NotchService: ObservableObject {
                     self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        if NotchNetworkSupport.isEnabled() {
+            SystemMonitor.shared.$snapshot.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.receiveNetworkSample($0) }
+                .store(in: &subscriptions)
+        }
         if modules.contains(.system), AppFeature.fanControl.isAvailable {
             // The fan card only exists once the page's first sample lands; the
             // strip that was sized without it reserves its row again.
@@ -4251,7 +4311,7 @@ final class NotchService: ObservableObject {
             let copiesShowMusic = showsCopies && NotchSupport.watchesMusicActivity()
             if copiesShowMusic { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
             releaseMonitor()
-            if showsCopies, idleContent == .network, compactActivity == nil {
+            if networkCopiesHaveRoom, NotchNetworkSupport.isEnabled(in: UserDefaults.standard), compactActivity == nil {
                 SystemMonitor.shared.setNotchDetailNeeds(.init(network: true))
             }
             return
@@ -4276,7 +4336,7 @@ final class NotchService: ObservableObject {
             && (geometry.floats || geometry.restingWingWidth(for: .network) > 0)
         // Copies stay closed while the primary opens another page or shows a
         // notice, so they retain their own sampling lease through those changes.
-        let networkAtRest = idleContent == .network && compactActivity == nil && (primaryShowsNetwork || showsCopies)
+        let networkAtRest = NotchNetworkSupport.isEnabled(in: UserDefaults.standard) && compactActivity == nil && (primaryShowsNetwork || networkCopiesHaveRoom)
         detailNeeds.network = detailNeeds.network || networkAtRest
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
