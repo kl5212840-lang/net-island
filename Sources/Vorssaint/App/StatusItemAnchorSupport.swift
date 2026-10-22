@@ -82,11 +82,19 @@ enum StatusItemAnchorSupport {
                                   panelWindowNumber: Int?,
                                   event: NSEvent?,
                                   secondsSinceLastReopen: TimeInterval,
+                                  navigationInProgress: Bool = false,
                                   uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
         guard !closedByApp,
               secondsSinceLastReopen > panelReopenCooldown,
-              let lastFrame, let panelWindowNumber, panelWindowNumber > 0,
-              let event, event.windowNumber == panelWindowNumber,
+              let lastFrame, let panelWindowNumber, panelWindowNumber > 0 else { return false }
+        // A tab action is stronger evidence than a fresh event. Its cold
+        // layout can outlast 250 ms, and shrinking the panel can put the
+        // original click outside the new bounds. Never undo a different
+        // window's click, even while that layout is settling.
+        if navigationInProgress {
+            return event == nil || event?.windowNumber == panelWindowNumber
+        }
+        guard let event, event.windowNumber == panelWindowNumber,
               event.type == .leftMouseDown || event.type == .leftMouseUp
                 || event.type == .rightMouseDown || event.type == .rightMouseUp,
               (0...0.25).contains(uptime - event.timestamp) else { return false }
@@ -192,6 +200,39 @@ enum PanelCloseReason {
         case .escape, .statusItem: return true
         case .outsideClick, .action: return false
         }
+    }
+}
+
+/// A section switch stays protected through its layout/height updates. Late
+/// layout completions cannot clear a newer switch, and a missing layout can
+/// never leave an unbounded recovery permission behind.
+struct PanelSectionNavigation {
+    private var revision: UInt = 0
+    private var beganAt: TimeInterval?
+
+    mutating func begin(now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        revision &+= 1
+        beganAt = now
+    }
+
+    func isActive(now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+        guard let beganAt else { return false }
+        return (0..<5).contains(now - beganAt)
+    }
+
+    mutating func settlementToken() -> UInt {
+        revision &+= 1
+        return revision
+    }
+
+    mutating func finish(token: UInt) {
+        guard token == revision else { return }
+        cancel()
+    }
+
+    mutating func cancel() {
+        revision &+= 1
+        beganAt = nil
     }
 }
 

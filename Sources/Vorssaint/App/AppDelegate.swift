@@ -1303,7 +1303,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
-        popoverCloseIsAppRequested || !PanelInteractionState.shared.preventsPopoverDismissal
+        popoverCloseIsAppRequested || (!PanelInteractionState.shared.isNavigatingSections
+            && !PanelInteractionState.shared.preventsPopoverDismissal)
     }
 
     func popoverWillClose(_ notification: Notification) {
@@ -1318,6 +1319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metric anchor switch: the panel is about to be shown again in the
         // same turn, so the sampling and caches it is using stay alive.
         let recoveryAnchor = anchorAfterForeignClose()
+        PanelInteractionState.shared.cancelSectionNavigation()
         if recoveryAnchor != nil {
             popoverIsSwitchingAnchor = true
             MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
@@ -1447,8 +1449,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     /// Preserve the corrected anchor, not just the status item's stale frame.
-    /// A recent event targeting this panel is required; a parked pointer is not
-    /// evidence that an unrelated system close should be undone.
+    /// A recent event targeting this panel, or its pending section layout, is
+    /// required; a parked pointer never authorizes undoing a system close.
     private func anchorAfterForeignClose() -> PanelAnchor? {
         guard !isTerminating, !popoverIsSwitchingAnchor,
               let anchor = popoverAnchor, anchor.screen?.isStillAttached == true,
@@ -1458,7 +1460,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                   lastFrame: popoverLastFrame,
                   panelWindowNumber: popoverLastWindowNumber,
                   event: NSApp.currentEvent,
-                  secondsSinceLastReopen: Date().timeIntervalSince(popoverForeignReopenAt))
+                  secondsSinceLastReopen: Date().timeIntervalSince(popoverForeignReopenAt),
+                  navigationInProgress: PanelInteractionState.shared.isNavigatingSections)
         else { return nil }
         return anchor
     }
@@ -2069,6 +2072,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Beta updates only introduce their new feature; other update surfaces
     /// retain their own release gates.
     private func presentUpdateIntros() {
+        guard AppInfo.supportsSelfUpdates else { return }
         if showWhatsNewIfNeeded() { return }
         if showUpdateHighlightsIfNeeded() { return }
         if !AppInfo.isBeta {
@@ -2089,6 +2093,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func queueBrightnessUpdatePromptIfNeeded(previousVersion: String?) {
+        guard AppInfo.supportsSelfUpdates else { return }
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: DefaultsKey.brightnessUpdatePromptState) == nil,
               !AppInfo.isDeveloperBuild,
@@ -2099,6 +2104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showBrightnessUpdatePromptIfNeeded() {
+        guard AppInfo.supportsSelfUpdates else { return }
         let defaults = UserDefaults.standard
         guard !isTerminating,
               defaults.string(forKey: DefaultsKey.brightnessUpdatePromptState)
@@ -2126,6 +2132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showUpdateHighlightsIfNeeded() -> Bool {
+        guard AppInfo.supportsSelfUpdates else { return false }
         guard UpdateHighlightsInfo.shouldShow(
             appVersion: AppInfo.version,
             lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
@@ -2198,6 +2205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Records an update the What's New window still has to cover. A second
     /// update before it opens keeps the older starting point.
     private func queueWhatsNewIfNeeded(previousVersion: String?) {
+        guard AppInfo.supportsSelfUpdates else { return }
         // The Developer build takes its version from whichever worktree built
         // it, so its versions jump around; it previews with a launch flag.
         guard !AppInfo.isDeveloperBuild else { return }
@@ -2209,6 +2217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showWhatsNewIfNeeded() -> Bool {
+        guard AppInfo.supportsSelfUpdates else { return false }
         guard !isTerminating,
               let previous = UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion)
         else { return false }
@@ -2345,6 +2354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
+        guard AppInfo.supportsSelfUpdates else { return false }
         guard AppInfo.version == UpdateShowcaseInfo.releaseVersion else {
             UpdateShowcaseInfo.cleanupCache()
             return false
@@ -2392,6 +2402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showSupportUpdateIntroIfNeeded() -> Bool {
+        guard AppInfo.supportsSelfUpdates else { return false }
         // Stable patches share one invitation, even if the first installed
         // version in this release series is a hotfix.
         guard SupportUpdateIntroInfo.shouldShow(
@@ -2478,6 +2489,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// person chose to skip it. In the Developer build `downloadAndInstall()`
     /// is a no-op, so confirming is safe.
     func showUpdatePreview() {
+        guard AppInfo.supportsSelfUpdates else { return }
         guard case let .available(version) = UpdateService.shared.state else { return }
         if let window = updatePreviewWindow {
             closePopover()

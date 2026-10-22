@@ -7,6 +7,7 @@ import AppKit
 /// isolated preferences and an explicit queue. No app windows become visible.
 enum UpdateIntroFlowTests {
     enum AppInfo {
+        static var supportsSelfUpdates = true
         static var version = "3.4.0"
         static var isBeta: Bool { version.contains("beta") }
         static var isDeveloperBuild = false
@@ -109,6 +110,16 @@ enum UpdateIntroFlowTests {
             DispatchQueue.main.drain()
             suite.expect(DispatchQueue.main.jobs.isEmpty, "intro transitions settle without a loop")
         }
+        let disabled = reset("3.4.2")
+        AppInfo.supportsSelfUpdates = false
+        UserDefaults.standard.set(true, forKey: DefaultsKey.releaseNotesOnUpdate)
+        UserDefaults.standard.set("3.4.0", forKey: DefaultsKey.whatsNewPendingVersion)
+        disabled.queueWhatsNewIfNeeded(previousVersion: "3.4.0")
+        disabled.presentUpdateIntros()
+        suite.expect(disabled.shown.isEmpty && !disabled.showWhatsNewIfNeeded()
+                     && !disabled.showUpdateHighlightsIfNeeded() && !disabled.showSupportUpdateIntroIfNeeded(),
+                     "disabled fork updates show no automatic windows even with imported reminder preferences")
+        AppInfo.supportsSelfUpdates = true
         for version in ["3.4.2", "3.4.3"] {
             for previous in [nil, "3.3.2", "3.4.0-beta.1"] as [String?] {
                 let host = reset(version)

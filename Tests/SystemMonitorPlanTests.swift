@@ -130,5 +130,18 @@ enum SystemMonitorPlanTests {
         suite.expect(monitor.currentPlan(defaults: defaults).needPeripheralBattery,
                      "the island's Battery detail still lists peripherals with the Power row hidden")
         monitor.notchDetailNeeds = .none
+        monitor.menuPanelNeeds = .none
+        defaults.set(false, forKey: DefaultsKey.menuBarCPU)
+        defaults.set(true, forKey: AppFeature.monitorNetwork.availabilityKey)
+        monitor.notchDetailNeeds = SystemMonitorPanelNeeds(network: true)
+        let networkOnly = monitor.currentPlan(defaults: defaults)
+        suite.expect(networkOnly.needNetwork && !networkOnly.needCPU && !networkOnly.needGPUUsage
+                     && !networkOnly.needMemory && !networkOnly.needDisk && !networkOnly.needPower
+                     && !networkOnly.needPeripheralBattery && !networkOnly.needFanSpeed && !networkOnly.needConnectedDevices,
+                     "the closed island's network demand does not activate unrelated samplers")
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        suite.expect(!monitor.currentPlan(defaults: defaults).needNetwork,
+                     "an uninstalled network monitor cannot sample for an idle island")
+        monitor.notchDetailNeeds = .none
     }
 }

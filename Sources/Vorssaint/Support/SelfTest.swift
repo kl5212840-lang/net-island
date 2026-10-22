@@ -94,6 +94,20 @@ enum SelfTest {
             warnings.append("no power metrics on this Mac")
         }
 
+        // The local fork must never check or install an upstream update, even
+        // when an imported preference asks for automatic checks.
+        if AppInfo.supportsSelfUpdates {
+            failures.append("fork self-updates must stay disabled")
+        } else {
+            let updates = UpdateService.shared
+            updates.startAutomaticChecks()
+            updates.check(manual: true)
+            updates.downloadAndInstall()
+            if updates.autoCheckEnabled || updates.state != .upToDate || updates.lastChecked != nil {
+                failures.append("disabled updater has an active update path")
+            }
+        }
+
         UserDefaults.standard.set("ok", forKey: "selftest")
         if UserDefaults.standard.string(forKey: "selftest") != "ok" {
             failures.append("UserDefaults")

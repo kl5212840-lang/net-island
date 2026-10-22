@@ -21,6 +21,26 @@ final class PanelInteractionState {
     /// modal state orphaned and make the next panel unresponsive.
     var isPresentingPopoverModal = false
 
+    private var sectionNavigation = PanelSectionNavigation()
+    var isNavigatingSections: Bool { sectionNavigation.isActive() }
+
+    func beginSectionNavigation() {
+        guard MenuPanelFocus.shared.popoverIsVisible else { return }
+        sectionNavigation.begin()
+    }
+
+    /// The first queued turn applies the measured height. Two turns beyond
+    /// it let SwiftUI and AppKit finish resizing before the protection ends.
+    func finishSectionNavigationAfterLayout() {
+        guard isNavigatingSections else { return }
+        let token = sectionNavigation.settlementToken()
+        DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self] in self?.sectionNavigation.finish(token: token) }
+        }
+    }
+
+    func cancelSectionNavigation() { sectionNavigation.cancel() }
+
     /// The one answer every AppKit dismissal path uses. Service state lives
     /// here so the generic popover host does not know about individual tools,
     /// and operations stay protected even after the user switches panel tabs.

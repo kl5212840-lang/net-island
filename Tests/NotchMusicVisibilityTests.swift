@@ -19,6 +19,7 @@ enum NotchMusicVisibilityTests {
     }
     enum PowerSampler { static var hasInternalBattery = true }
     struct MonitorNeeds {
+        var network = false
         var disk = false
         var fanSpeed = false
         var connectedDevices = false
@@ -28,8 +29,9 @@ enum NotchMusicVisibilityTests {
     final class SystemMonitor {
         static let shared = SystemMonitor()
         var detailNeeds = MonitorNeeds.none
+        var visible = false
         func setNotchDetailNeeds(_ needs: MonitorNeeds) { detailNeeds = needs }
-        func setNotchVisible(_ visible: Bool) {}
+        func setNotchVisible(_ visible: Bool) { self.visible = visible }
     }
     final class CameraPreviewService {
         static let shared = CameraPreviewService()
@@ -181,6 +183,81 @@ enum NotchMusicVisibilityTests {
         devices.releaseMonitor()
         suite.expect(!SystemMonitor.shared.detailNeeds.connectedDevices,
                      "releasing the island stops its connected device sampling demand")
+
+        let network = Service()
+        defaults.set(NotchIdleContent.network.rawValue, forKey: DefaultsKey.notchIdleContent)
+        let monitor = SystemMonitor.shared
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network && !monitor.visible && !monitor.detailNeeds.disk
+                     && !monitor.detailNeeds.fanSpeed && !monitor.detailNeeds.connectedDevices,
+                     "closed network readings request only network data, without opening the full System monitor")
+        network.expanded = true
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "opening another island page releases idle network sampling")
+        network.showsCopies = true
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "a visible copy keeps network sampling while the primary opens another page")
+        network.expanded = false
+        network.peeking = true
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "a visible copy keeps sampling while the primary peeks")
+        network.peeking = false
+        network.notice = NotchNotice(event: .battery, title: "Battery", detail: "50%", symbol: "battery.50percent")
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "a visible copy keeps sampling while a notice replaces the primary reading")
+        network.notice = nil
+        network.hasTimerActivity = true
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "an activity replacing the reading on all copies releases network sampling")
+        network.hasTimerActivity = false
+        network.showsCopies = false
+        network.expanded = false
+        network.hasTimerActivity = true
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "a timer replacing the idle network readout stops its sampling")
+        network.hasTimerActivity = false
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "finishing the timer resumes the network readout")
+        network.notice = NotchNotice(event: .battery, title: "Battery", detail: "50%", symbol: "battery.50percent")
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "a replacing notice releases idle network sampling")
+        network.notice = nil
+        defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
+        defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "an island hidden until hover does not sample invisible network readings")
+        defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
+        network.suspended = true
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "suspending the island releases network sampling")
+        network.suspended = false
+        network.geometry.compactSideRoom = 60
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "network sampling stops when the menus leave no room for its readings")
+        network.showsCopies = true
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network, "a copy on another display keeps the network readings alive")
+        network.hiddenInFullscreen = true
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network && !monitor.visible,
+                     "copies still sample only network data while the main island is hidden in fullscreen")
+        network.showsCopies = false
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "fullscreen without a visible copy releases network data")
+        network.hiddenInFullscreen = false
+        network.geometry.compactSideRoom = 100
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network && network.idleContent == .none,
+                     "uninstalling network monitoring releases the idle consumer and hides its readings")
+        defaults.set(true, forKey: AppFeature.monitorNetwork.availabilityKey)
+        network.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.network && network.idleContent == .network,
+                     "reinstalling network monitoring restores the saved idle choice")
+        network.running = false
+        network.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.network, "turning the island off releases its network consumer")
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
 
         let persistentCapture = Service()
         var persistentCloseCount = 0

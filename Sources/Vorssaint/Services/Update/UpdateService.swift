@@ -27,7 +27,7 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaint/vorssaint-utils"
+    private let repository = "kl5212840-lang/net-island"
     private var downloadURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
@@ -38,7 +38,7 @@ final class UpdateService: ObservableObject {
     private init() {}
 
     var autoCheckEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? true }
+        get { AppInfo.supportsSelfUpdates && (UserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? false) }
         set {
             UserDefaults.standard.set(newValue, forKey: DefaultsKey.autoCheckUpdates)
             configureAutomaticChecks()
@@ -61,6 +61,7 @@ final class UpdateService: ObservableObject {
 
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
+        guard AppInfo.supportsSelfUpdates else { return }
         consumeInstallResult()
         if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
             UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
@@ -86,6 +87,7 @@ final class UpdateService: ObservableObject {
     private func configureAutomaticChecks() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+        guard AppInfo.supportsSelfUpdates else { return }
         guard autoCheckEnabled else { return }
         // Hourly (was daily). Combined with the activate / panel-open checks, a new
         // release surfaces within the hour instead of up to a day later.
@@ -100,6 +102,11 @@ final class UpdateService: ObservableObject {
     // MARK: - Check
 
     func check(manual: Bool) {
+        guard AppInfo.supportsSelfUpdates else {
+            state = .upToDate
+            availableNotes = nil
+            return
+        }
         if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
@@ -206,6 +213,7 @@ final class UpdateService: ObservableObject {
     // MARK: - Download & install
 
     func downloadAndInstall() {
+        guard AppInfo.supportsSelfUpdates else { return }
         if AppInfo.isDeveloperBuild { return }  // never replace the local dev build over itself
         guard let downloadURL else { return }
         // Pre-flight BEFORE spending the download: a translocated app or one
@@ -447,6 +455,7 @@ final class UpdateService: ObservableObject {
     }
 
     private func consumeInstallResult() {
+        guard AppInfo.supportsSelfUpdates else { return }
         guard let url = Self.installResultURL else { return }
         // A leftover progress file means an installer died mid-run (or is
         // still running right now); it is never a finished verdict.

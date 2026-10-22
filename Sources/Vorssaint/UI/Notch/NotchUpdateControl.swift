@@ -12,6 +12,10 @@ struct NotchUpdateControl: View {
     @ObservedObject private var l10n = L10n.shared
 
     @ViewBuilder var body: some View {
+        if AppInfo.supportsSelfUpdates { updateContent }
+    }
+
+    @ViewBuilder private var updateContent: some View {
         switch updates.state {
         case let .available(version):
             let tint: Color = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? .orange : .blue

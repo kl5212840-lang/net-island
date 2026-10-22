@@ -219,7 +219,7 @@ def main():
               "    private func anchorVisibleFrame(", "    private func applyPopoverDriftFrame(",
               "    private func beginPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {",
               "    private func armPopoverDriftCorrection(", "    private func endPopoverDriftCorrection(",
-              "    private func showPopover(", "    func popoverWillClose(", "    func popoverDidClose(",
+              "    private func showPopover(", "    func popoverShouldClose(", "    func popoverWillClose(", "    func popoverDidClose(",
               "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
               "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover(",
               "    private var popoverIsOpen:", "    private func showMetricPanel(",

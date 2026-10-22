@@ -2129,6 +2129,32 @@ enum NotchTests {
                "re-enabling automatic music restores the selected music only during playback")
         let idleGeometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                         safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
+        let networkAvailable = defaults.object(forKey: AppFeature.monitorNetwork.availabilityKey)
+        defaults.set(true, forKey: AppFeature.monitorNetwork.availabilityKey)
+        defaults.set(NotchIdleContent.network.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(NotchSupport.visibleIdleContent(isPlaying: false, in: defaults) == .network
+                     && NotchSupport.visibleIdleContent(isPlaying: true, in: defaults) == .network,
+                     "network remains the saved resting content between music activities")
+        let networkSize = idleGeometry.restingSize(showsContent: true, content: .network)
+        suite.expect(networkSize.width == 324 && networkSize.height == idleGeometry.stripHeight,
+                     "network rates reserve stable, equal 72-point wings around the physical camera")
+        suite.expect(idleGeometry.frame(for: networkSize).midX == idleGeometry.screen.midX,
+                     "the network readout stays centred around the camera")
+        var networkCrowded = idleGeometry
+        networkCrowded.compactSideRoom = 71
+        suite.expect(networkCrowded.restingSize(showsContent: true, content: .network).width == networkCrowded.cameraWidth,
+                     "network readings yield to menus when either wing cannot fit intact")
+        let capsule = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                    silhouette: .capsule)
+        suite.expect(capsule.restingSize(showsContent: false, content: .network).width >= 144
+                     && capsule.restingSize(showsContent: false, content: .network).height == capsule.stripHeight,
+                     "a floating network capsule reserves room for both directions without increasing its height")
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        suite.expect(NotchSupport.idleContent(in: defaults) == .none
+                     && defaults.string(forKey: DefaultsKey.notchIdleContent) == "network",
+                     "an unavailable network monitor hides its readout without discarding the saved choice")
+        defaults.set(networkAvailable, forKey: AppFeature.monitorNetwork.availabilityKey)
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
         suite.expect(idleGeometry.restingSize(showsContent: NotchSupport.visibleIdleContent(isPlaying: false, in: defaults) != .none)
                == CGSize(width: 180, height: 32),
                "stopped idle music shrinks to the physical camera without reserving empty side space")

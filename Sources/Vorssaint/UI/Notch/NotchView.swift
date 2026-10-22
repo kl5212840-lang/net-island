@@ -664,6 +664,7 @@ struct NotchRestingStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
+    private var wingWidth: CGFloat { geometry.restingWingWidth(for: service.idleContent) }
 
     private var batteryTint: Color {
         NotchRestingBattery.tint(for: service.power, tint: lowBatteryTint, threshold: lowBatteryThreshold,
@@ -689,7 +690,7 @@ struct NotchRestingStrip: View {
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
-                if service.idleContent != .none, geometry.restingWingWidth > 0 {
+                if service.idleContent != .none, wingWidth > 0 {
                     // Each wing keeps its width even when it has nothing to
                     // show, or the other one slides toward the camera.
                     ZStack(alignment: .trailing) {
@@ -708,10 +709,13 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: true)
                                 .padding(.leading, restingBatteryInset)
+                        case .network:
+                            NotchNetworkWing()
+                                .padding(.leading, restingBatteryInset)
                         case .none: EmptyView()
                         }
                     }
-                    .frame(width: geometry.restingWingWidth)
+                    .frame(width: wingWidth)
                     .opacity(wingStepsAside(.left) ? 0 : 1)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.left))
                     Color.clear.frame(width: geometry.cameraWidth)
@@ -733,26 +737,29 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
+                        case .network:
+                            NotchNetworkWing(upload: true)
+                                .padding(.trailing, restingBatteryInset)
                         case .none: EmptyView()
                         }
                     }
-                    .frame(width: geometry.restingWingWidth)
+                    .frame(width: wingWidth)
                     .opacity(wingStepsAside(.right) ? 0 : 1)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.right))
                 } else { Color.clear }
             }
             if service.mascotShows(on: geometry) {
                 NotchMascotTrackView(look: NotchMascotSupport.look(),
-                                     track: NotchMascotSupport.track(stripWidth: geometry.collapsed.width,
+                                     track: NotchMascotSupport.track(stripWidth: geometry.restingSize(showsContent: true, content: service.idleContent).width,
                                                                      stripHeight: geometry.stripHeight,
-                                                                     wing: geometry.restingWingWidth,
+                                                                     wing: wingWidth,
                                                                      cameraWidth: geometry.cameraWidth, floats: false,
                                                                      bodyHeight: geometry.stripBodyHeight,
                                                                      side: service.mascotSide),
                                      rests: service.mascotAtRest, visit: service.mascotVisit,
                                      mood: service.mascotRestingMood, reaction: service.mascotReaction,
                                      yieldsToActivities: true)
-                    .frame(width: geometry.collapsed.width, height: geometry.stripHeight)
+                    .frame(width: geometry.restingSize(showsContent: true, content: service.idleContent).width, height: geometry.stripHeight)
                     // The window's own layer shows it while the island closes around it.
                     .opacity(service.mascotBridging && displayGeometry == nil ? 0 : 1)
                     .animation(nil, value: service.mascotBridging)
@@ -766,7 +773,7 @@ struct NotchRestingStrip: View {
         .frame(height: geometry.stripHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
-        .accessibilityHidden(true)
+        .accessibilityHidden(service.idleContent != .network)
     }
 }
 

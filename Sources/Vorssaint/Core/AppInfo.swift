@@ -5,10 +5,12 @@ import Foundation
 
 /// Static identity of the app, shared by UI, notifications and tooling.
 enum AppInfo {
-    static let name = "Vorssaint"
-    static let copyright = "© 2026 Vorssaint"
-    static let websiteURL = URL(string: "https://vorssaint.com")!
-    static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
+    static let name = "Net Island"
+    static let copyright = "© 2026 Vorssaint and Net Island contributors"
+    static let websiteURL = URL(string: "https://github.com/kl5212840-lang/net-island")!
+    static let repositoryURL = URL(string: "https://github.com/kl5212840-lang/net-island")!
+    /// This fork is installed locally. It must never install an upstream build.
+    static let supportsSelfUpdates = false
     static let coffeeURL = URL(string: "https://buymeacoffee.com/vorssaint")!
     static let discordURL = URL(string: "https://discord.gg/M6BwWH4BJp")!
     static let socialURL = URL(string: "https://x.com/vorssaint")!

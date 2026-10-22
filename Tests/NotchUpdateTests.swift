@@ -8,6 +8,7 @@ import SwiftUI
 /// Production action and view bodies. No network, download, visible window,
 /// screenshot or input event is used by this contract.
 enum NotchUpdateTests {
+    enum AppInfo { static var supportsSelfUpdates = true }
     final class Delegate {
         var previews = 0
         func showUpdatePreview() { previews += 1 }
@@ -64,6 +65,17 @@ enum NotchUpdateTests {
         suite.expect(service.delegate.previews == before + 1,
                "a delayed second action after collapse cannot reopen the update preview")
         layout(suite)
+        AppInfo.supportsSelfUpdates = false
+        defer { AppInfo.supportsSelfUpdates = true }
+        service.expanded = true
+        updates.state = .available(version: "99.0.0")
+        let disabledPreviews = service.delegate.previews
+        service.showUpdate()
+        suite.expect(service.delegate.previews == disabledPreviews && service.expanded,
+                     "a disabled fork updater cannot show a preview or collapse the island")
+        let hidden = NSHostingView(rootView: NotchUpdateControl(action: {}))
+        hidden.layoutSubtreeIfNeeded()
+        suite.expect(hidden.fittingSize == .zero, "a disabled fork updater draws no island badge or banner")
     }
 
     private static func layout(_ suite: TestSuite) {

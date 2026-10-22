@@ -205,7 +205,7 @@ struct NotchCapsuleRestingView: View {
                         .allowsHitTesting(false)
                 }
             }
-            .accessibilityHidden(true)
+            .accessibilityHidden(service.idleContent != .network)
     }
 
     private var resting: some View {
@@ -227,6 +227,9 @@ struct NotchCapsuleRestingView: View {
                 case .agents:
                     NotchAgentRestingWing(leading: true)
                     NotchAgentRestingWing(leading: false)
+                case .network:
+                    NotchNetworkWing().frame(width: 64)
+                    NotchNetworkWing(upload: true).frame(width: 64)
                 case .music:
                     if let artwork = music.artwork {
                         NotchMusicCover(artwork: artwork, side: CapsuleLayout.artworkSide(geometry),

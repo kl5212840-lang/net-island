@@ -708,7 +708,7 @@ struct NotchControlsLayout: Equatable {
 }
 
 enum NotchIdleContent: String, CaseIterable {
-    case none, battery, music, agents
+    case none, battery, music, agents, network
 }
 
 /// How urgently the charge is shown: amber for the early warning, red when low.
@@ -1960,6 +1960,7 @@ enum NotchSupport {
         case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
         case .music: return modules(in: defaults).contains(.music)
         case .agents: return NotchAgentSupport.sectionShows(in: defaults)
+        case .network: return AppFeature.monitorNetwork.isAvailable(in: defaults)
         }
     }
 
@@ -2402,11 +2403,23 @@ struct NotchGeometry: Equatable {
         let available = min(44, max(0, compactSideRoom ?? 0)).rounded(.down)
         return available >= 44 ? available : 0
     }
+    /// Network readings reserve the same width at every speed. If the menus
+    /// leave too little room, omit both readings rather than clipping one.
+    func restingWingWidth(for content: NotchIdleContent) -> CGFloat {
+        guard content == .network else { return restingWingWidth }
+        return (compactSideRoom ?? 0) >= 72 ? 72 : 0
+    }
     var collapsed: CGSize {
         CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: stripHeight)
     }
-    func restingSize(showsContent: Bool) -> CGSize {
-        if showsContent { return collapsed }
+    func restingSize(showsContent: Bool, content: NotchIdleContent = .none) -> CGSize {
+        if content == .network, floats {
+            let width = 144 + NotchCapsuleLayout.side(self) * 2 + NotchCapsuleLayout.endPadding * 2
+            return CGSize(width: min(screen.width - 24, width), height: stripHeight)
+        }
+        if showsContent {
+            return CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth(for: content) * 2), height: stripHeight)
+        }
         // Bare, a capsule is shorter than the gap between an activity's
         // wings, closer to the phone's proportions, and on whole points,
         // as the window around it is.

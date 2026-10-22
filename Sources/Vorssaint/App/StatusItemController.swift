@@ -356,7 +356,7 @@ final class StatusItemController {
         let defaults = UserDefaults.standard
         let updateAvailable: Bool
         if case .available = UpdateService.shared.state {
-            updateAvailable = true
+            updateAvailable = AppInfo.supportsSelfUpdates
         } else {
             updateAvailable = false
         }
@@ -522,7 +522,7 @@ final class StatusItemController {
             // the title is known non-empty on this branch.
             let updateAvailable: Bool
             if case .available = UpdateService.shared.state {
-                updateAvailable = true
+                updateAvailable = AppInfo.supportsSelfUpdates
             } else {
                 updateAvailable = false
             }

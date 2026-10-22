@@ -533,31 +533,37 @@ struct NotchSettings: View {
         }
     }
 
+    var restingContentCard: some View {
+        SettingsCard(title: editor.resting) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 10)], alignment: .leading, spacing: 10) {
+                // With the companion on, the island rests with it when it
+                // has nothing else to show, so that choice is the companion,
+                // unless it hides in the island when idle.
+                idleChoice(.none, title: restsWithMascot ? FeatureStrings.notchMascot(l10n.language).title : text.idleNone,
+                           symbol: "minus")
+                if PowerSampler.hasInternalBattery {
+                    idleChoice(.battery, title: text.battery, symbol: "battery.75percent",
+                               reason: AppFeature.monitorPower.enableReason(l10n)) { AppFeature.monitorPower.showInFeatures() }
+                }
+                idleChoice(.music, title: text.music, symbol: "music.note",
+                           reason: pageReason(.music, feature: nil), fix: pageAction(.music, feature: nil))
+                idleChoice(.network, title: l10n.s.networkSection, symbol: "network",
+                           reason: AppFeature.monitorNetwork.enableReason(l10n)) { AppFeature.monitorNetwork.showInFeatures() }
+                // Offered once the section is on, and kept while it is the
+                // saved choice, waiting like the others.
+                if NotchSupport.canRest(with: .agents) || idle == NotchIdleContent.agents.rawValue {
+                    idleChoice(.agents, title: FeatureStrings.notchAgents(l10n.language).restingTitle, symbol: "sparkles",
+                               reason: pageReason(.agents, feature: .notchAgents), fix: pageAction(.agents, feature: .notchAgents))
+                }
+            }
+            if restingChoice == .battery { lowBatteryControls }
+            switchRow("menubar.rectangle", text.coverMenus, caption: text.coverMenusHint, isOn: $coversMenus)
+        }
+    }
+
     private var activityPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SettingsCard(title: editor.resting) {
-                HStack(alignment: .top, spacing: 10) {
-                    // With the companion on, the island rests with it when it
-                    // has nothing else to show, so that choice is the companion,
-                    // unless it hides in the island when idle.
-                    idleChoice(.none, title: restsWithMascot ? FeatureStrings.notchMascot(l10n.language).title : text.idleNone,
-                               symbol: "minus")
-                    if PowerSampler.hasInternalBattery {
-                        idleChoice(.battery, title: text.battery, symbol: "battery.75percent",
-                                   reason: AppFeature.monitorPower.enableReason(l10n)) { AppFeature.monitorPower.showInFeatures() }
-                    }
-                    idleChoice(.music, title: text.music, symbol: "music.note",
-                               reason: pageReason(.music, feature: nil), fix: pageAction(.music, feature: nil))
-                    // Offered once the section is on, and kept while it is the
-                    // saved choice, waiting like the others.
-                    if NotchSupport.canRest(with: .agents) || idle == NotchIdleContent.agents.rawValue {
-                        idleChoice(.agents, title: FeatureStrings.notchAgents(l10n.language).restingTitle, symbol: "sparkles",
-                                   reason: pageReason(.agents, feature: .notchAgents), fix: pageAction(.agents, feature: .notchAgents))
-                    }
-                }
-                if restingChoice == .battery { lowBatteryControls }
-                switchRow("menubar.rectangle", text.coverMenus, caption: text.coverMenusHint, isOn: $coversMenus)
-            }
+            restingContentCard
             SettingsCard(title: editor.feedback) {
                 let volumeAvailable = AppFeature.mixer.isAvailable
                 let brightnessAvailable = AppFeature.brightness.isAvailable && brightnessControlEnabled
@@ -944,6 +950,11 @@ struct NotchSettings: View {
                     HStack(spacing: 14) {
                         if item == .none, restsWithMascot {
                             restingMascot
+                        } else if item == .network {
+                            Label("1.2M", systemImage: "arrow.down")
+                                .font(.system(size: 9, weight: .medium)).monospacedDigit()
+                            Label("86K", systemImage: "arrow.up")
+                                .font(.system(size: 9, weight: .medium)).monospacedDigit()
                         } else if item != .none {
                             Image(systemName: symbol).font(.system(size: 11))
                             RoundedRectangle(cornerRadius: 4).fill(.black).frame(width: 20, height: 12)

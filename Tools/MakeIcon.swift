@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// Generates all icon assets:
-// - the app iconset and .icns from the exported Default rendition of the
-//   adaptive source (Resources/Brand/AppIcon-Default.png)
-// - the menu bar template glyph and BrandMark from the wordmark master
-//   (Resources/Brand/logo.png)
-// AppIcon-Default.png is a hand-exported twin of Resources/Brand/AppIcon.icon;
-// re-export it whenever the Icon Composer project changes. The build cannot read
-// .icon bundles directly: actool exists only inside full Xcode 26, and the
-// supported local floor is Command Line Tools alone.
+// Generates the fork’s own app icon, menu bar glyph and in-app mark.
 import AppKit
 
 // Current macOS misreads PNG payloads in the legacy small chunks. It downsamples
@@ -23,48 +15,7 @@ let iconSizes: [(name: String, px: Int, icnsType: String?)] = [
 ]
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
-let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-let projectDir = scriptDir.deletingLastPathComponent()
-let logoPath = projectDir.appendingPathComponent("Resources/Brand/logo.png").path
-
-guard let logo = NSImage(contentsOfFile: logoPath),
-      let logoTIFF = logo.tiffRepresentation,
-      let logoRep = NSBitmapImageRep(data: logoTIFF)
-else {
-    print("could not load \(logoPath)")
-    exit(1)
-}
-
-let appIconPath = projectDir.appendingPathComponent("Resources/Brand/AppIcon-Default.png").path
-guard let appIconMaster = NSImage(contentsOfFile: appIconPath) else {
-    print("could not load \(appIconPath)")
-    exit(1)
-}
-
-/// Bounding box of visible (non-transparent) pixels, so the mark can be
-/// centered optically regardless of padding in the source file.
-func contentBounds(of rep: NSBitmapImageRep) -> CGRect {
-    var minX = rep.pixelsWide, minY = rep.pixelsHigh, maxX = 0, maxY = 0
-    for y in 0..<rep.pixelsHigh {
-        for x in 0..<rep.pixelsWide {
-            if let color = rep.colorAt(x: x, y: y), color.alphaComponent > 0.05 {
-                minX = min(minX, x); maxX = max(maxX, x)
-                minY = min(minY, y); maxY = max(maxY, y)
-            }
-        }
-    }
-    guard maxX > minX, maxY > minY else {
-        return CGRect(x: 0, y: 0, width: rep.pixelsWide, height: rep.pixelsHigh)
-    }
-    return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
-}
-
-let bounds = contentBounds(of: logoRep)
-// NSImage draws bottom-up while colorAt() is top-down — flip Y for drawing.
-let sourceRect = CGRect(x: bounds.minX,
-                        y: CGFloat(logoRep.pixelsHigh) - bounds.maxY,
-                        width: bounds.width,
-                        height: bounds.height)
+let sourceRect = CGRect(x: 0, y: 0, width: 256, height: 144)
 
 func bitmapCanvas(_ px: Int, _ py: Int) -> NSBitmapImageRep? {
     NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: py,
@@ -73,15 +24,27 @@ func bitmapCanvas(_ px: Int, _ py: Int) -> NSBitmapImageRep? {
                      bytesPerRow: 0, bitsPerPixel: 0)
 }
 
-/// Draws the trimmed mark fitted into `target`, preserving aspect ratio.
+/// Two opposing arrows identify the fork without using upstream artwork.
 func drawMark(into target: CGRect) {
-    let scale = min(target.width / sourceRect.width, target.height / sourceRect.height)
-    let size = CGSize(width: sourceRect.width * scale, height: sourceRect.height * scale)
-    let rect = CGRect(x: target.midX - size.width / 2,
-                      y: target.midY - size.height / 2,
-                      width: size.width, height: size.height)
-    logo.draw(in: rect, from: sourceRect, operation: .sourceOver, fraction: 1,
-              respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high.rawValue])
+    NSGraphicsContext.saveGraphicsState()
+    let transform = NSAffineTransform()
+    transform.translateX(by: target.minX, yBy: target.minY)
+    transform.scaleX(by: target.width / 256, yBy: target.height / 144)
+    transform.concat()
+    for (x, down) in [(CGFloat(76), true), (CGFloat(180), false)] {
+        let path = NSBezierPath()
+        path.lineWidth = 16
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.move(to: CGPoint(x: x, y: 24))
+        path.line(to: CGPoint(x: x, y: 120))
+        path.move(to: CGPoint(x: x - 30, y: down ? 54 : 90))
+        path.line(to: CGPoint(x: x, y: down ? 24 : 120))
+        path.line(to: CGPoint(x: x + 30, y: down ? 54 : 90))
+        NSColor.white.setStroke()
+        path.stroke()
+    }
+    NSGraphicsContext.restoreGraphicsState()
 }
 
 // MARK: - App icon
@@ -91,23 +54,13 @@ func renderAppIcon(px: Int) -> Data? {
     guard let rep = bitmapCanvas(px, px), let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
     rep.size = NSSize(width: size, height: size)
 
-    // Every renderer in MakeIcon.swift focuses the graphics context before
-    // drawing; without this the draws land nowhere and the PNGs come out empty.
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
-    // The exported Default rendition is the finished icon design: background,
-    // layering and system-grid margins are baked in, so it maps onto the canvas
-    // 1:1 instead of being re-framed like the old mark-on-squircle composite.
-    // Source rect = the ENTIRE master, in the MASTER's coordinate space
-    // (appIconMaster.size), never the target's — a size-sized source rect would
-    // crop the bottom-left corner of the 1024x1024 master instead of scaling.
-    // (This SDK's draw(in:from:...) types from: as non-optional NSRect, so
-    // full-source must be spelled out rather than passed as nil.)
-    appIconMaster.draw(in: NSRect(x: 0, y: 0, width: size, height: size),
-                       from: NSRect(origin: .zero, size: appIconMaster.size),
-                       operation: .sourceOver, fraction: 1,
-                       respectFlipped: false,
-                       hints: [.interpolation: NSImageInterpolation.high.rawValue])
+    NSColor(calibratedRed: 0.08, green: 0.19, blue: 0.25, alpha: 1).setFill()
+    NSBezierPath(roundedRect: CGRect(x: size * 0.08, y: size * 0.08,
+                                    width: size * 0.84, height: size * 0.84),
+                 xRadius: size * 0.19, yRadius: size * 0.19).fill()
+    drawMark(into: CGRect(x: size * 0.15, y: size * 0.30, width: size * 0.70, height: size * 0.40))
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
 }

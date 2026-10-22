@@ -141,7 +141,10 @@ struct MenuPanelView: View {
             applyFocus(request)
         }
         .onChange(of: focusedSection) { _, section in
-            if let section { selectedSection = section }
+            if let section {
+                if selectedSection != section { PanelInteractionState.shared.beginSectionNavigation() }
+                selectedSection = section
+            }
         }
     }
 
@@ -373,6 +376,7 @@ struct MenuPanelView: View {
             ForEach(visibleSections) { id in
                 let isActive = activeSection == id
                 Button {
+                    if activeSection != id { PanelInteractionState.shared.beginSectionNavigation() }
                     selectedSection = id
                     focusedSection = id
                 } label: {
@@ -2519,7 +2523,12 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         installReporter(on: host)               // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
-            DispatchQueue.main.async { measuredHeight = h }
+            DispatchQueue.main.async {
+                measuredHeight = h
+                PanelInteractionState.shared.finishSectionNavigationAfterLayout()
+            }
+        } else if h > 1 {
+            PanelInteractionState.shared.finishSectionNavigationAfterLayout()
         }
     }
 
@@ -2533,8 +2542,15 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         host.onLayout = { [weak host] in
             guard let host else { return }
             let h = host.fittingSize.height
-            guard h > 1, abs(h - binding.wrappedValue) > 0.5 else { return }
-            DispatchQueue.main.async { binding.wrappedValue = h }
+            guard h > 1 else { return }
+            if abs(h - binding.wrappedValue) > 0.5 {
+                DispatchQueue.main.async {
+                    binding.wrappedValue = h
+                    PanelInteractionState.shared.finishSectionNavigationAfterLayout()
+                }
+            } else {
+                PanelInteractionState.shared.finishSectionNavigationAfterLayout()
+            }
         }
     }
 
@@ -2591,6 +2607,7 @@ private extension View {
 
 private extension UpdateService.State {
     var showsMenuPanelBanner: Bool {
+        guard AppInfo.supportsSelfUpdates else { return false }
         switch self {
         case .available, .downloading, .installing:
             return true
@@ -2608,7 +2625,11 @@ struct UpdateBanner: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if AppInfo.supportsSelfUpdates { updateContent }
+    }
+
+    @ViewBuilder private var updateContent: some View {
         switch updates.state {
         case let .available(version):
             let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false

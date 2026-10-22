@@ -1,3 +1,43 @@
+# Net Island
+
+A personal, unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint-utils), focused on live network speeds in the closed Dynamic Island. GPL-3.0-or-later; the original authors retain their copyrights.
+
+## Idle network readout
+
+In **Settings → Dynamic Island → Activity → When idle**, choose **Network**. Keep the Network monitoring feature installed. Download is on the left, upload on the right. The capsule layout shows both in one row. Rates use the existing Network panel’s bits/bytes preference; hover a reading for its full unit. “—” means the first sample is pending; zero means measured idle traffic, not an offline verdict.
+
+Timers, music and notices keep their existing priority. Network readings return when the island rests. Sampling stops while the readout is hidden and no other surface needs the data. If menu space is too narrow, both readings yield together.
+
+## Menu-panel navigation
+
+Section switches retain the popover while their content and height settle, including a cold first layout. AppKit-initiated closes during that transition are vetoed; forced closes can recover without treating a slow internal click as stale or comparing it against the smaller page’s bounds. Outside clicks, Escape and the status-item toggle still dismiss normally. Recovery remains bounded.
+
+## Build and coexistence
+
+Requires Apple Silicon, macOS 14+ and Xcode Command Line Tools.
+
+```sh
+./build.sh --dev
+./build.sh --test
+./build.sh --dev --install
+```
+
+The Developer bundle is `Net Island (Developer).app`, executable `NetIslandDeveloper`, bundle ID `io.github.kl5212840.net-island.dev`. An optimized `./build.sh` produces `Net Island.app` with bundle ID `io.github.kl5212840.net-island`. Both use separate preferences, app data and login items, and neither install removes or stops Vorssaint. A dedicated local signing identity keeps permissions stable. Automatic self-updates, update notifications, badges, banners and post-update popups are disabled for this fork, even when older settings are imported.
+
+Both apps can be installed together. If both Dynamic Islands are enabled on the same display, their windows may overlap; choose which app should draw the island.
+
+For a repeatable offscreen UI and live sampling check, run the Developer bundle’s binary:
+
+```sh
+"build/stage.noindex/Net Island (Developer).app/Contents/MacOS/NetIslandDeveloper" --network-island-test --output-dir .local-output/validation
+```
+
+Add `--chinese` for Simplified Chinese settings captures. The probe uses volatile defaults and does not start other app features.
+
+The remaining documentation below describes the upstream project and its official releases. Download and update links there belong to upstream, not to this fork.
+
+---
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.svg">

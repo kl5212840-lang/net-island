@@ -89,6 +89,7 @@ enum MenuPanelRecoveryTests {
             isShown = true
         }
     }
+    typealias NSPopover = Popover
     final class Center {
         var observers: [(NSObject, Any?, (Notification) -> Void)] = []
         var additions = 0
@@ -180,6 +181,8 @@ enum MenuPanelRecoveryTests {
         static var shared = PanelInteractionState()
         var viewKeepsPopoverOpen = false
         var isPresentingPopoverModal = false
+        var isNavigatingSections = false
+        func cancelSectionNavigation() { isNavigatingSections = false }
         var anchorScreen: NSScreen?
         var preventsPopoverDismissal: Bool {
             viewKeepsPopoverOpen || isPresentingPopoverModal
@@ -206,9 +209,11 @@ enum MenuPanelRecoveryTests {
             PanelRecoveryPolicy.pinnedPanelFrame(size: size, anchorMidX: anchorMidX, anchorTop: anchorTop, visibleFrame: visibleFrame)
         }
         static func shouldReopenPanel(closedByApp: Bool, lastFrame: CGRect?, panelWindowNumber: Int?,
-                                      event: NSEvent?, secondsSinceLastReopen: TimeInterval) -> Bool {
+                                      event: NSEvent?, secondsSinceLastReopen: TimeInterval,
+                                      navigationInProgress: Bool = false) -> Bool {
             PanelRecoveryPolicy.shouldReopenPanel(closedByApp: closedByApp, lastFrame: lastFrame,
-                panelWindowNumber: panelWindowNumber, event: event, secondsSinceLastReopen: secondsSinceLastReopen)
+                panelWindowNumber: panelWindowNumber, event: event, secondsSinceLastReopen: secondsSinceLastReopen,
+                navigationInProgress: navigationInProgress)
         }
     }
     class Fixture {
@@ -267,6 +272,20 @@ enum MenuPanelRecoveryTests {
     }
 
     static func run(_ expect: (Bool, String) -> Void) {
+        var navigation = PanelSectionNavigation()
+        navigation.begin(now: 10)
+        expect(navigation.isActive(now: 11), "a cold section switch stays active beyond the old 250 ms click budget")
+        let oldLayout = navigation.settlementToken()
+        navigation.begin(now: 12)
+        navigation.finish(token: oldLayout)
+        expect(navigation.isActive(now: 12.5), "an old layout completion cannot release a newer section switch")
+        let settled = navigation.settlementToken()
+        navigation.finish(token: settled)
+        expect(!navigation.isActive(now: 13), "settled navigation releases its protection")
+        navigation.begin(now: 20)
+        expect(!navigation.isActive(now: 25), "a missing layout cannot keep navigation protection alive indefinitely")
+        navigation.cancel()
+        expect(!navigation.isActive(now: 20.1), "closing a panel cancels pending navigation")
         func setup(corrected: Bool = false, present: Bool = true) -> Host {
             DispatchQueue.main = Queue(); NotificationCenter.default = Center(); NSAnimationContext.completions = []
             NSScreen.screens = [NSScreen()]; NSApp = Application(); NSWorkspace.shared = NSWorkspace()
@@ -306,6 +325,39 @@ enum MenuPanelRecoveryTests {
                 host.popoverWillClose(Notification(name: Notification.Name("willClose")))
                 host.popoverDidClose(Notification(name: Notification.Name("closed")))
             }
+        }
+        for age: TimeInterval in [0.4, 1, 2] {
+            let host = setup()
+            PanelInteractionState.shared.isNavigatingSections = true
+            // A tall System page switches to a shorter Network page. The
+            // click was inside the old page, above the new frame's height.
+            NSApp.currentEvent = event(.leftMouseUp, location: CGPoint(x: 100, y: 650), age: age)
+            expect(!host.popoverShouldClose(host.popover), "native closure is vetoed during a cold section layout")
+            close(host)
+            expect(host.popover.isShown && MenuPanelFocus.shared.activeMetric == "network"
+                   && SystemMonitor.shared.needs == .network,
+                   "a forced close after \(age)s of layout recovers the chosen page despite the resized bounds")
+            expect(!PanelInteractionState.shared.isNavigatingSections,
+                   "recovery consumes the navigation permission instead of leaving it behind")
+            DispatchQueue.main.drain()
+            PanelInteractionState.shared.isNavigatingSections = true
+            host.popoverCloseIsAppRequested = true
+            expect(host.popoverShouldClose(host.popover), "an explicit dismissal still wins over section navigation")
+            requestClose(host, .outsideClick)
+            expect(!host.popover.isShown, "clicking outside still closes a panel during navigation")
+        }
+        do {
+            let host = setup()
+            PanelInteractionState.shared.isNavigatingSections = true
+            NSApp.currentEvent = event(window: 99, age: 1)
+            close(host)
+            expect(!host.popover.isShown, "navigation never reopens a panel for another window's click")
+        }
+        for reason in [PanelCloseReason.escape, .statusItem] {
+            let host = setup()
+            PanelInteractionState.shared.isNavigatingSections = true
+            requestClose(host, reason)
+            expect(!host.popover.isShown, "\(reason) still dismisses during section navigation")
         }
         for corrected in [false, true] {
             let host = setup(corrected: corrected)

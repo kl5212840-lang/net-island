@@ -938,7 +938,7 @@ final class NotchService: ObservableObject {
                                           reach: named.map { ($0.leading - $0.trailing) / 2 } ?? 0)
                 : resting
         }
-        let resting = geometry.restingSize(showsContent: idleContent != .none || mascotShows(on: geometry))
+        let resting = geometry.restingSize(showsContent: idleContent != .none || mascotShows(on: geometry), content: idleContent)
         return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
     }
 
@@ -969,7 +969,7 @@ final class NotchService: ObservableObject {
         if peeking || showsCompactActivityPicker { return nil }
         // At rest the charge or the allowance fits inside the bare capsule.
         let resting = compactActivity.map { capsuleStripSize(for: $0, companion: compactCompanion) }
-            ?? geometry.restingSize(showsContent: false)
+            ?? geometry.restingSize(showsContent: false, content: idleContent)
         return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
     }
 
@@ -2616,6 +2616,10 @@ final class NotchService: ObservableObject {
         defer {
             schedulePointerFollow()
             syncMirrors()
+            // Activity and notice changes can reveal the resting network
+            // strip without opening or closing a page. Reconcile its demand
+            // after the copies' visibility has settled, too.
+            if idleContent == .network { syncVisibleConsumers() }
             flushMascotReaction()
             // Hidden until hover, the closed island shows no companion either,
             // so an activity bringing it into view has none to take over from.
@@ -3090,7 +3094,7 @@ final class NotchService: ObservableObject {
     /// for that display, or the island at rest there.
     private func mirrorSurface(on base: NotchGeometry, activity: NotchCompactActivity?) -> (strip: NotchGeometry, size: CGSize) {
         guard let activity else {
-            return (base, base.restingSize(showsContent: !base.floats && (idleContent != .none || mascotShows(on: base))))
+            return (base, base.restingSize(showsContent: !base.floats && (idleContent != .none || mascotShows(on: base)), content: idleContent))
         }
         let companion = compactCompanion
         if base.floats { return (base, capsuleStripSize(for: activity, companion: companion, geometry: base)) }
@@ -3833,6 +3837,7 @@ final class NotchService: ObservableObject {
     }
 
     func showUpdate() {
+        guard AppInfo.supportsSelfUpdates else { return }
         guard running, !suspended, expanded, case .available = UpdateService.shared.state else { return }
         collapse()
         appDelegate()?.showUpdatePreview()
@@ -4246,6 +4251,9 @@ final class NotchService: ObservableObject {
             let copiesShowMusic = showsCopies && NotchSupport.watchesMusicActivity()
             if copiesShowMusic { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
             releaseMonitor()
+            if showsCopies, idleContent == .network, compactActivity == nil {
+                SystemMonitor.shared.setNotchDetailNeeds(.init(network: true))
+            }
             return
         }
         if !NotchCameraSupport.canPresent(expanded: expanded && !showingSections && !showingCommandBar, selected: selected,
@@ -4260,6 +4268,16 @@ final class NotchService: ObservableObject {
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel
             && !showingSections && !showingCommandBar
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none
+        // A closed network readout is its own lightweight consumer. Do not
+        // pretend the full System page is visible: that would also sample CPU,
+        // graphics, memory and power for two network numbers.
+        let primaryShowsNetwork = !expanded && !peeking && notice == nil && captureControls == nil
+            && !dragPlaceholder && !hiddenUntilHover
+            && (geometry.floats || geometry.restingWingWidth(for: .network) > 0)
+        // Copies stay closed while the primary opens another page or shows a
+        // notice, so they retain their own sampling lease through those changes.
+        let networkAtRest = idleContent == .network && compactActivity == nil && (primaryShowsNetwork || showsCopies)
+        detailNeeds.network = detailNeeds.network || networkAtRest
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         if needs, AppFeature.connectedDevices.isAvailable { detailNeeds.connectedDevices = true }

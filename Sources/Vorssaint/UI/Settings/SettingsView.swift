@@ -616,20 +616,22 @@ struct SettingsView: View {
 struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
-    @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
+    @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = false
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
     @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
-    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
+    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = false
 
     var body: some View {
         Section(l10n.s.updatesSection) {
-            Toggle(l10n.s.autoCheckToggle, isOn: $autoCheck)
+            Toggle(l10n.s.autoCheckToggle, isOn: AppInfo.supportsSelfUpdates ? $autoCheck : .constant(false))
+                .disabled(!AppInfo.supportsSelfUpdates)
                 .onChange(of: autoCheck) { _, value in
                     UpdateService.shared.autoCheckEnabled = value
                 }
 
             VStack(alignment: .leading, spacing: 4) {
                 Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
+                    .disabled(!AppInfo.supportsSelfUpdates)
                     .onChange(of: includeBetas) { _, value in
                         UpdateService.shared.includeBetaUpdates = value
                     }
@@ -644,7 +646,8 @@ struct UpdatesView: View {
                 }
             }
 
-            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
+            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: AppInfo.supportsSelfUpdates ? $showWhatsNewAfter : .constant(false))
+                .disabled(!AppInfo.supportsSelfUpdates)
 
             statusRow
 
@@ -652,7 +655,7 @@ struct UpdatesView: View {
                 Button(l10n.s.checkNowButton) {
                     updates.check(manual: true)
                 }
-                .disabled(isBusy)
+                .disabled(isBusy || !AppInfo.supportsSelfUpdates)
 
                 if case .available = updates.state {
                     Button(l10n.s.updateInstallButton) {

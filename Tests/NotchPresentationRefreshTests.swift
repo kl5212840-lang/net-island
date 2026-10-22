@@ -157,6 +157,8 @@ enum NotchPresentationRefreshContract {
         }
     }
     class State: ObservableObject {
+        var idleContent = NotchIdleContent.none
+        var consumerSyncs = 0
         var noticeFitsInPlace = false
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
@@ -230,7 +232,7 @@ enum NotchPresentationRefreshContract {
             if captureControlsMonitors.isEmpty { captureControlsMonitors = [1] }
         }
         func removeEventMonitors() {}
-        func syncVisibleConsumers() {}
+        func syncVisibleConsumers() { consumerSyncs += 1 }
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var windowHost: Host? = Host()
@@ -422,6 +424,19 @@ enum NotchPresentationRefreshContract {
             UserDefaults.standard.hides = false
             UserDefaults.standard.outline = false
         }
+        let network = Service()
+        network.idleContent = .network
+        network.expanded = false
+        network.refreshPresentation(animated: false)
+        suite.expect(network.consumerSyncs > 0,
+                     "revealing the idle network strip reconciles its sampling even without a page change")
+        let networkSyncs = network.consumerSyncs
+        network.compactActivityIsVisible = true
+        network.refreshPresentation(animated: false)
+        network.compactActivityIsVisible = false
+        network.refreshPresentation(animated: false)
+        suite.expect(network.consumerSyncs >= networkSyncs + 2,
+                     "activity arrival and departure both reconcile the resting network consumer")
         let outlined = Service()
         outlined.expanded = false
         UserDefaults.standard.outline = true
