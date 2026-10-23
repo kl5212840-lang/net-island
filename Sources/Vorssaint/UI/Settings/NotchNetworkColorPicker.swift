@@ -100,7 +100,12 @@ private final class CompletionColorWell: NSColorWell {
     }
 
     @objc func finishSelection(_ sender: Any?) {
+        let panel = NSColorPanel.shared
+        // Commit any RGB/hex field editor before disconnecting this well.
+        guard panel.makeFirstResponder(nil) else { return }
+        color = panel.color
+        sendAction(action, to: target)
         deactivate()
-        NSColorPanel.shared.close()
+        panel.close()
     }
 }
