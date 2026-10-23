@@ -73,4 +73,26 @@ struct NotchNetworkStrings {
     var expanded: String { text("Expanded", "已展开", "已展開") }
     var collapsed: String { text("Collapsed", "已收起", "已收起") }
     var gap: String { text("Arrow spacing", "箭头与数值间距", "箭頭與數值間距") }
+    var customPresets: String { text("My presets", "自定义预设", "自訂預設") }
+    var presetName: String { text("Preset name", "预设名称", "預設名稱") }
+    var savePreset: String { text("Save current", "保存当前", "儲存目前") }
+    var presetEmpty: String { text("Save the current colors, size, spacing, alignment and number format. Click a name to switch, or right-click the network icon.", "保存当前颜色、字号、宽度、对齐、留白和显示格式。点击名称可切换，也可右键岛上的网速图标选用。", "儲存目前顏色、字體大小、寬度、對齊、留白和顯示格式。點擊名稱可切換，也可右鍵島上的網速圖示選用。") }
+    var presetNameHint: String { text("Use a unique name, up to 40 characters. Up to 30 presets stay on this Mac.", "名称不可重复，最多40个字符。最多保存30套，仅存储在本机。", "名稱不可重複，最多40個字元。最多儲存30套，僅儲存在本機。") }
+    var presetUnreadable: String { text("Saved presets could not be read. Existing data has been kept intact.", "无法读取已保存的预设，原始数据已保留。", "無法讀取已儲存的預設，原始資料已保留。") }
+    var renamePreset: String { text("Rename", "重命名", "重新命名") }
+    var updatePreset: String { text("Update with current appearance", "用当前外观更新", "以目前外觀更新") }
+    var deletePreset: String { text("Delete preset", "删除预设", "刪除預設") }
+    var presetApplied: String { text("Current appearance", "与当前外观一致", "與目前外觀一致") }
+    var cancel: String { text("Cancel", "取消", "取消") }
+    var headerTitle: String { text("Top-row shortcuts", "顶部快捷图标", "頂部快捷圖示") }
+    var headerSettings: String { text("Additional Settings shortcut", "额外显示设置图标", "額外顯示設定圖示") }
+    var headerSettingsPosition: String { text("Settings icon position", "设置图标位置", "設定圖示位置") }
+    var headerNetworkPosition: String { text("Network switch position", "网速开关位置", "網速開關位置") }
+    var headerIconOnly: String { text("Network switch: icon only", "网速开关仅显示图标", "網速開關僅顯示圖示") }
+    var headerLeftOuter: String { text("Left · Outer edge", "左侧外端", "左側外端") }
+    var headerLeftInner: String { text("Left · Beside camera", "左侧靠刘海", "左側靠瀏海") }
+    var headerRightInner: String { text("Right · Beside camera", "右侧靠刘海", "右側靠瀏海") }
+    var headerRightOuter: String { text("Right · Outer edge", "右侧外端", "右側外端") }
+    var headerHint: String { text("Adds shortcuts inside the open island without moving its floating buttons. Camera clearance stays reserved. Crowded rows use icons first, then omit extra shortcuts. Pages with their own left header use the right side.", "在展开的岛内额外添加快捷图标，不改动原有悬浮按钮。自动预留刘海安全距离；空间不足时先简化为图标，再隐藏额外快捷项。自行布局左侧标题栏的分区会改用右侧。", "在展開的島內額外新增快捷圖示，不更動原有浮動按鈕。自動預留瀏海安全距離；空間不足時先簡化為圖示，再隱藏額外快捷項。自行配置左側標題列的分區會改用右側。") }
+
 }

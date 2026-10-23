@@ -18,6 +18,7 @@ struct NotchNetworkSettings: View {
     @AppStorage(DefaultsKey.notchNetworkArrowGap) private var arrowGap = 3.0
     @AppStorage(DefaultsKey.notchNetworkOuterSpacing) private var outerSpacing = 0.0
     @AppStorage(DefaultsKey.notchNetworkInnerSpacing) private var innerSpacing = 0.0
+    @AppStorage(DefaultsKey.notchNetworkPresets) private var presetsData = Data()
     @State private var appearanceExpanded: Bool
     @State private var behaviorExpanded: Bool
     @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
@@ -63,8 +64,15 @@ struct NotchNetworkSettings: View {
                     Button(text.smallPreset) { applyPreset(0) }
                     Button(text.balancedPreset) { applyPreset(1) }
                     Button(text.clearPreset) { applyPreset(2) }
+                    let saved = NotchNetworkPresetLibrary(data: presetsData).presets
+                    if !saved.isEmpty { Divider() }
+                    ForEach(saved) { preset in
+                        Button(preset.name) { preset.apply(); service.syncWithPreferences() }
+                    }
                 }.fixedSize().help(text.presetHint)
             }
+            NotchNetworkPresetSettings(appearanceSignature: signature + [unit.rawValue])
+            Divider()
             Picker(text.format, selection: $fullUnits) {
                 Text(text.compact).tag(false)
                 Text(text.precise).tag(true)

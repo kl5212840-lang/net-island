@@ -84,7 +84,10 @@ struct NotchNetworkToggle: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = ""
     @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
+    @AppStorage(DefaultsKey.notchNetworkPresets) private var presetsData = Data()
+    @AppStorage(DefaultsKey.notchHeaderNetworkIconOnly) private var iconOnly = false
     var compact = false
+    private var isCompact: Bool { compact || iconOnly }
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var isOn: Bool { idle == "network" && !paused && AppFeature.monitorNetwork.isAvailable }
 
@@ -93,12 +96,12 @@ struct NotchNetworkToggle: View {
             HStack(spacing: 5) {
                 Image(systemName: isOn ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
                     .font(.system(size: 13, weight: .medium))
-                if !compact { Text(text.quickTitle).font(.system(size: 11, weight: .medium)) }
+                if !isCompact { Text(text.quickTitle).font(.system(size: 11, weight: .medium)) }
             }
             .foregroundStyle(isOn ? .white : .white.opacity(0.65))
-            .padding(.horizontal, compact ? 7 : 9)
+            .padding(.horizontal, isCompact ? 7 : 9)
             .frame(height: 26)
-            .background(.white.opacity(isOn ? 0.16 : 0.06), in: Capsule())
+            .background(.white.opacity(isCompact ? 0 : (isOn ? 0.16 : 0.06)), in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 13, lifts: false))
@@ -107,6 +110,14 @@ struct NotchNetworkToggle: View {
         .accessibilityLabel(text.title)
         .accessibilityValue(isOn ? text.on : text.off)
         .accessibilityIdentifier("notch.network.toggle")
+        .contextMenu {
+            let saved = NotchNetworkPresetLibrary(data: presetsData).presets
+            ForEach(saved) { preset in
+                Button(preset.name) { preset.apply(); service.syncWithPreferences() }
+            }
+            if !saved.isEmpty { Divider() }
+            Button(l10n.s.menuSettings, action: service.openSettings)
+        }
     }
 }
 

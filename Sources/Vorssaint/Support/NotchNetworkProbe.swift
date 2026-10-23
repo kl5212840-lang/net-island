@@ -103,6 +103,51 @@ enum NotchNetworkProbe {
         .background(Color(nsColor: .windowBackgroundColor))
         capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
+        if arguments.contains("--named-presets-only") {
+            var saved = NotchNetworkPresetLibrary(data: Data())
+            saved.presets = [NotchNetworkPreset.capture(name: language == "zh-Hans" ? "日常 · 柔和配色" : "Everyday · Soft colors"),
+                             NotchNetworkPreset.capture(name: language == "zh-Hans" ? "下载任务 · 大字清晰精准读数" : "Download sessions · Large precise readings")]
+            overrides[DefaultsKey.notchNetworkPresets] = saved.encoded!
+            overrides[DefaultsKey.notchHeaderNetworkIconOnly] = true
+            overrides[DefaultsKey.notchHeaderSettingsPosition] = "rightOuter"
+            overrides[DefaultsKey.notchHeaderNetworkPosition] = "leftOuter"
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchNetworkSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                        size: CGSize(width: width, height: 1000), name: "named-presets-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
+            capture(AnyView(NotchHeaderSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                    size: CGSize(width: 460, height: 430), name: "header-settings-\(language)", output: output, failures: &failures)
+            for position in NotchHeaderPosition.allCases {
+                overrides[DefaultsKey.notchHeaderSettingsPosition] = position.rawValue
+                overrides[DefaultsKey.notchHeaderNetworkPosition] = position.rawValue
+                UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+                for width: CGFloat in (language == "zh-Hans" ? [360, 600] : [600]) {
+                    let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                                 layout: .custom, customWidth: Double(width), customHeight: 300)
+                    NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .system)
+                    let size = NotchService.shared.surfaceSize
+                    capture(AnyView(NotchView(service: .shared).background(.black)
+                        .clipShape(NotchShape.island(height: size.height, geometry: geometry))), size: size,
+                            name: "header-\(position.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+                }
+            }
+            overrides[DefaultsKey.notchHeaderSettingsPosition] = "rightOuter"
+            overrides[DefaultsKey.notchHeaderNetworkPosition] = "leftOuter"
+            overrides[DefaultsKey.notchHeaderNetworkIconOnly] = false
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            let floating = NotchGeometry(screen: hanging.screen, safeAreaTop: 0, cameraWidth: 0, layout: .custom,
+                                          customWidth: 600, customHeight: 300, silhouette: .capsule)
+            NotchService.shared.prepareNetworkProbe(geometry: floating, expanded: true, selected: .tools)
+            let size = NotchService.shared.surfaceSize
+            capture(AnyView(NotchView(service: .shared).background(.black)
+                .clipShape(NotchShape.island(height: size.height, geometry: floating))), size: size,
+                    name: "header-floating-\(language)", output: output, failures: &failures, island: true)
+            monitor.setNotchDetailNeeds(.none)
+            print(failures.isEmpty ? "NETWORK ISLAND OK" : "NETWORK ISLAND FAILED: " + failures.joined(separator: "; "))
+            exit(failures.isEmpty ? 0 : 1)
+        }
         if arguments.contains("--network-ux-only") {
             NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
             capture(AnyView(NotchNetworkSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),

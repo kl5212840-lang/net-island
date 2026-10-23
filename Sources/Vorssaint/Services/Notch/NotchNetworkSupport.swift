@@ -4,7 +4,7 @@
 import Foundation
 import CoreGraphics
 
-struct NotchNetworkStyle: Equatable {
+struct NotchNetworkStyle: Equatable, Codable {
     var fontSize: CGFloat = 10
     var wingWidth: CGFloat = 72
     var verticalOffset: CGFloat = 0

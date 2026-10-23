@@ -12,6 +12,8 @@ struct NotchView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @AppStorage(DefaultsKey.notchNavigationPosition) private var navigationPosition = "top"
+    @AppStorage(DefaultsKey.notchHeaderSettingsPosition) private var headerSettingsPosition = "hidden"
+    @AppStorage(DefaultsKey.notchHeaderNetworkPosition) private var headerNetworkPosition = "leftOuter"
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -407,8 +409,8 @@ struct NotchView: View {
         return NotchBandRow(band: band, covered: feedback == nil ? nil : side) {
             if !wraps {
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { bandLeading(band); NotchNetworkToggle(service: service); items.leading }
-                    HStack(spacing: 6) { bandLeading(band); NotchNetworkToggle(service: service, compact: true); items.leading }
+                    leadingHeader(items, band: band, compact: false)
+                    leadingHeader(items, band: band, compact: true)
                     HStack(spacing: 6) { bandLeading(band); items.leading }
                 }
             }
@@ -420,11 +422,8 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
-                    HStack(spacing: 6) {
-                        items.trailing; trailingSections(band)
-                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
-                    }
+                    trailingHeader(items, band: band, wraps: wraps, compact: false)
+                    trailingHeader(items, band: band, wraps: wraps, compact: true)
                     HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
                     HStack(spacing: 6) { items.trailing; trailingSections(band) }
                 }
@@ -441,6 +440,43 @@ struct NotchView: View {
         // Drawn here rather than in the page, the row's controls read the
         // island's language for their dates and numbers, as the page does.
         .environment(\.locale, l10n.language.formattingLocale())
+    }
+
+    private func leadingHeader(_ items: NotchBandItems, band: NotchBand, compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            bandLeading(band)
+            headerShortcuts(at: .leftOuter, wraps: false, compact: compact)
+            items.leading
+            Spacer(minLength: 0)
+            headerShortcuts(at: .leftInner, wraps: false, compact: compact)
+        }
+    }
+
+    private func trailingHeader(_ items: NotchBandItems, band: NotchBand, wraps: Bool, compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            headerShortcuts(at: .rightInner, wraps: wraps, compact: compact)
+            if band.besideCamera { Spacer(minLength: 0) }
+            items.trailing
+            trailingSections(band)
+            updateControl(band)
+            pinMark
+            headerShortcuts(at: .rightOuter, wraps: wraps, compact: compact)
+        }
+    }
+
+    @ViewBuilder private func headerShortcuts(at position: NotchHeaderPosition, wraps: Bool, compact: Bool) -> some View {
+        let networkHere = NotchHeaderPosition.resolved(headerNetworkPosition).effective(wrapsCamera: wraps) == position
+        let settingsHere = headerSettingsPosition != "hidden"
+            && NotchHeaderPosition.resolved(headerSettingsPosition).effective(wrapsCamera: wraps) == position
+        if networkHere || settingsHere {
+            HStack(spacing: 6) {
+                if networkHere { NotchNetworkToggle(service: service, compact: compact) }
+                if settingsHere {
+                    NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
+                        .accessibilityIdentifier("notch.header.settings")
+                }
+            }.fixedSize(horizontal: true, vertical: false)
+        }
     }
 
     /// A page that lays out its leading side itself ends its row with the

@@ -815,6 +815,10 @@ enum DefaultsKey {
     static let notchSystemVerticalSpacing = "notchSystemVerticalSpacing"
     static let notchSystemMetricOrder = "notchSystemMetricOrder"
     static let notchSystemHiddenMetrics = "notchSystemHiddenMetrics"
+    static let notchNetworkPresets = "notchNetworkPresets"
+    static let notchHeaderSettingsPosition = "notchHeaderSettingsPosition"
+    static let notchHeaderNetworkPosition = "notchHeaderNetworkPosition"
+    static let notchHeaderNetworkIconOnly = "notchHeaderNetworkIconOnly"
     static let notchNetworkPaused = "notchNetworkPaused"
     static let notchNetworkFullUnits = "notchNetworkFullUnits"
     static let notchNetworkDecimals = "notchNetworkDecimals"
@@ -1449,6 +1453,10 @@ enum Defaults {
         DefaultsKey.notchSystemVerticalSpacing: 10.0,
         DefaultsKey.notchSystemMetricOrder: "",
         DefaultsKey.notchSystemHiddenMetrics: "",
+        DefaultsKey.notchNetworkPresets: Data(),
+        DefaultsKey.notchHeaderSettingsPosition: "hidden",
+        DefaultsKey.notchHeaderNetworkPosition: "leftOuter",
+        DefaultsKey.notchHeaderNetworkIconOnly: false,
         DefaultsKey.notchNetworkPaused: false,
         DefaultsKey.notchNetworkFullUnits: false,
         DefaultsKey.notchNetworkDecimals: 1,

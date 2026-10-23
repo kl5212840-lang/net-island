@@ -66,6 +66,70 @@ enum NotchTests {
                      "enlarged cards and spacing participate in the actual island height calculation")
     }
 
+    private static func networkPresetContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-network-presets"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.set("custom", forKey: DefaultsKey.notchNetworkTint)
+        defaults.set("EF483C", forKey: DefaultsKey.notchNetworkDownloadColor)
+        defaults.set("00F5FF", forKey: DefaultsKey.notchNetworkUploadColor)
+        defaults.set(11.5, forKey: DefaultsKey.notchNetworkFontSize)
+        defaults.set(138.0, forKey: DefaultsKey.notchNetworkWidth)
+        defaults.set("outside", forKey: DefaultsKey.notchNetworkAlignment)
+        defaults.set(6.0, forKey: DefaultsKey.notchNetworkOuterSpacing)
+        defaults.set(9.0, forKey: DefaultsKey.notchNetworkInnerSpacing)
+        defaults.set("bits", forKey: DefaultsKey.networkSpeedUnit)
+        let original = NotchNetworkPreset.capture(name: "工作", in: defaults)
+        var library = NotchNetworkPresetLibrary(data: Data())
+        library.presets = [original]
+        let decoded = NotchNetworkPresetLibrary(data: library.encoded!)
+        suite.expect(decoded.presets == [original] && decoded.readable,
+                     "named appearances retain their identity, colors, half-point font and layout after disk round-trip")
+        defaults.set(8.0, forKey: DefaultsKey.notchNetworkFontSize)
+        defaults.set("white", forKey: DefaultsKey.notchNetworkTint)
+        defaults.set(true, forKey: DefaultsKey.notchNetworkPaused)
+        defaults.set(true, forKey: DefaultsKey.notchNetworkAutoHide)
+        defaults.set(true, forKey: DefaultsKey.notchNetworkAvoidMenus)
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        original.apply(in: defaults)
+        suite.expect(original.matches(in: defaults) && NotchNetworkStyle.stored(in: defaults) == original.style,
+                     "one preset action restores all saved appearance settings and the shared speed unit")
+        suite.expect(defaults.bool(forKey: DefaultsKey.notchNetworkPaused)
+                     && defaults.bool(forKey: DefaultsKey.notchNetworkAutoHide)
+                     && defaults.bool(forKey: DefaultsKey.notchNetworkAvoidMenus)
+                     && !defaults.bool(forKey: AppFeature.monitorNetwork.availabilityKey),
+                     "appearance switching never changes pause, automatic hiding, menu avoidance or monitoring permission")
+        suite.expect(!library.accepts("  工作  ") && !library.accepts(" ") && library.accepts("工作", excluding: original.id),
+                     "blank and duplicate names are rejected while renaming a preset to itself remains valid")
+        library.presets[0].name = "Evening"
+        suite.expect(!library.accepts("EVENING") && NotchNetworkPresetLibrary.cleanName(String(repeating: "网", count: 50)).count == 40,
+                     "names have bounded Unicode length and case-insensitive duplicate detection")
+        var broken = original
+        broken.style.fontSize = 999
+        broken.style.wingWidth = -1
+        broken.style.alignment = "invalid"
+        broken.style.downloadColor = "invalid"
+        broken.style.innerSpacing = 999
+        library.presets = [broken]
+        let imported = NotchNetworkPresetLibrary(data: library.encoded!).presets[0]
+        imported.apply(in: defaults)
+        let safe = NotchNetworkStyle.stored(in: defaults)
+        suite.expect(safe.fontSize == 18 && safe.alignment == "center" && safe.innerSpacing == 24
+                     && safe.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: 18, innerSpacing: 24),
+                     "imported preset numbers and colors use the live layout safety bounds")
+        let corrupt = NotchNetworkPresetLibrary(data: Data("broken JSON".utf8))
+        suite.expect(!corrupt.readable && corrupt.encoded == nil,
+                     "unreadable stored presets are surfaced without silently overwriting their original data")
+        library.presets = [original, original]
+        suite.expect(!NotchNetworkPresetLibrary(data: library.encoded!).readable,
+                     "duplicate identities in imported presets do not reach the named list")
+        for position in NotchHeaderPosition.allCases {
+            suite.expect(position.effective(wrapsCamera: true) == (position == .leftOuter ? .rightOuter : position == .leftInner ? .rightInner : position),
+                         "page-owned leading headers redirect shortcuts to the safe trailing side")
+        }
+    }
+
     private static func networkCustomizationContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-network-controls"
         let defaults = UserDefaults(suiteName: domain)!
@@ -779,11 +843,13 @@ enum NotchTests {
         let row = (island.components(separatedBy: "private func bandRow(").dropFirst().first ?? "")
             .components(separatedBy: "private func updateControl(").first ?? ""
         let trailing = row.components(separatedBy: "} trailing: {").dropFirst().first ?? ""
-        let fallbacks = trailing.components(separatedBy: "HStack(spacing: 6) {").count - 1
-        let ends = trailing.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
-        suite.expect(fallbacks == 4 && ends == fallbacks
+        let inlineFallbacks = trailing.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
+        suite.expect(inlineFallbacks == 2
+                     && trailing.contains("trailingHeader(items, band: band, wraps: wraps, compact: false)")
+                     && trailing.contains("trailingHeader(items, band: band, wraps: wraps, compact: true)")
+                     && trailing.contains("items.trailing\n            trailingSections(band)")
                      && row.contains("if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }"),
-                     "every fallback of the row's trailing side ends a wrapping page's controls with the sections button")
+                     "both header helpers and compact fallbacks keep the sections button after a wrapping page’s controls")
         let player = source("Sources/Vorssaint/UI/Notch/NotchMusicView.swift")
         let corners = player.components(separatedBy: "} corner: {").dropFirst().map { $0.components(separatedBy: "}").first ?? "" }
         let cornersShowIt = corners.count == 2 && corners.allSatisfy { $0.contains("sectionsButton") }
@@ -1846,6 +1912,7 @@ enum NotchTests {
     static func run(_ suite: TestSuite) {
         systemCustomizationContracts(suite)
         networkCustomizationContracts(suite)
+        networkPresetContracts(suite)
         shortcutContracts(suite)
         let previewStrip: CGFloat = 37
         suite.expect(NotchTranslucentTint.opacity(atDepth: previewStrip, stripHeight: previewStrip,

@@ -304,6 +304,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
+        Sources/Vorssaint/Services/Notch/NotchNetworkPresets.swift
+        Sources/Vorssaint/Services/Notch/NotchHeaderConfiguration.swift
         Sources/Vorssaint/Services/Notch/NotchSystemConfiguration.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
         Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift
