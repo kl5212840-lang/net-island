@@ -230,7 +230,7 @@ struct NotchCapsuleRestingView: View {
                 case .network:
                     NotchNetworkWing(upload: geometry.networkStyle.uploadOnLeft, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
                         .frame(width: geometry.networkStyle.wingWidth - 8)
-                    NotchNetworkWing(upload: !geometry.networkStyle.uploadOnLeft, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
+                    NotchNetworkWing(upload: !geometry.networkStyle.uploadOnLeft, leadingSide: false, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
                         .frame(width: geometry.networkStyle.wingWidth - 8)
                 case .music:
                     if let artwork = music.artwork {

@@ -23,7 +23,7 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkFullUnits: arguments.contains("--full"),
             DefaultsKey.notchNetworkAutoHide: false,
             DefaultsKey.notchNetworkAvoidMenus: false,
-            DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 16.0 : 10.0,
+            DefaultsKey.notchNetworkFontSize: arguments.contains("--large") ? 18.0 : arguments.contains("--small") ? 8.0 : 10.0,
             DefaultsKey.notchNetworkDecimals: arguments.contains("--large") ? 2 : 1,
             DefaultsKey.notchNetworkTint: arguments.contains("--custom") ? "custom" : arguments.contains("--large") ? "direction" : "white",
             DefaultsKey.notchNetworkDownloadColor: "CDB5FF",
@@ -32,7 +32,9 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkWeight: arguments.contains("--large") ? "bold" : "medium",
             DefaultsKey.notchNetworkArrowGap: arguments.contains("--large") ? 10.0 : 3.0,
             DefaultsKey.notchNetworkOpacity: 0.9,
-            DefaultsKey.notchNetworkAlignment: "center",
+            DefaultsKey.notchNetworkAlignment: arguments.contains("--outside") ? "outside" : "center",
+            DefaultsKey.notchNetworkOuterSpacing: arguments.contains("--large") ? 24.0 : 0.0,
+            DefaultsKey.notchNetworkInnerSpacing: arguments.contains("--large") ? 24.0 : 0.0,
             DefaultsKey.notchNavigationPosition: "top",
             DefaultsKey.notchSystemLayout: "original",
             DefaultsKey.notchSystemCardScale: 1.0,
@@ -41,9 +43,9 @@ enum NotchNetworkProbe {
             DefaultsKey.notchSystemMetricOrder: "",
             DefaultsKey.notchSystemHiddenMetrics: "",
             "AppleShowScrollBars": "Always",
-            DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 144.0 : 72.0,
+            DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 240.0 : arguments.contains("--small") ? 48.0 : 72.0,
             DefaultsKey.notchNetworkOffset: arguments.contains("--large") ? 3.0 : 0.0,
-            DefaultsKey.notchNetworkUploadOnLeft: false,
+            DefaultsKey.notchNetworkUploadOnLeft: arguments.contains("--swap"),
             DefaultsKey.notchMascotEnabled: false,
             DefaultsKey.notchAgentsEnabled: false,
             DefaultsKey.notchShowPlayingMusic: false,
@@ -101,6 +103,19 @@ enum NotchNetworkProbe {
         .background(Color(nsColor: .windowBackgroundColor))
         capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
+        if arguments.contains("--network-ux-only") {
+            NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
+            capture(AnyView(NotchNetworkSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                    size: CGSize(width: 460, height: 700), name: "network-collapsed-\(language)", output: output, failures: &failures)
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchNetworkSettings(expandAppearance: true, expandBehavior: true).padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 2000),
+                        name: "network-expanded-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
+            monitor.setNotchDetailNeeds(.none)
+            print(failures.isEmpty ? "NETWORK ISLAND OK" : "NETWORK ISLAND FAILED: " + failures.joined(separator: "; "))
+            exit(failures.isEmpty ? 0 : 1)
+        }
         for width: CGFloat in [360, 480, 600] {
             let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
                                          layout: .custom, compactSideRoom: 100,

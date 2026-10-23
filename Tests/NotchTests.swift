@@ -108,6 +108,22 @@ enum NotchTests {
         suite.expect(invalidColors.downloadColor == "#B3D1FF" && invalidColors.uploadColor == "#73F2FF" && invalidColors.colorScope == "all",
                      "invalid imported color values fall back safely")
         suite.expect(sanitized == NotchNetworkStyle(), "non-finite imported layout values use safe defaults")
+        let outside = NotchNetworkStyle(fontSize: 10.5, wingWidth: 48, alignment: "outside", outerSpacing: 6, innerSpacing: 12)
+        suite.expect(outside.alignment(onLeadingSide: true) == "leading" && outside.alignment(onLeadingSide: false) == "trailing"
+                     && outside.fontSize == 10.5,
+                     "outer-edge alignment mirrors by screen side and keeps half-point font sizing")
+        suite.expect(outside.wingWidth >= NotchNetworkStyle.minimumWidth(fontSize: 10.5, outerSpacing: 6, innerSpacing: 12),
+                     "padding increases the minimum readable width instead of clipping text")
+        let maximum = NotchNetworkStyle(fontSize: 18, wingWidth: 48, fullUnits: true, decimals: 2, arrowGap: 10,
+                                        outerSpacing: 24, innerSpacing: 24)
+        suite.expect(maximum.wingWidth <= 240 && maximum.wingWidth >= 229,
+                     "the largest precise text and padding fit inside the selectable wing range")
+        defaults.set("outside", forKey: DefaultsKey.notchNetworkAlignment)
+        defaults.set(6.0, forKey: DefaultsKey.notchNetworkOuterSpacing)
+        defaults.set(12.0, forKey: DefaultsKey.notchNetworkInnerSpacing)
+        let storedSpacing = NotchNetworkStyle.stored(in: defaults)
+        suite.expect(storedSpacing.alignment == "outside" && storedSpacing.outerSpacing == 6 && storedSpacing.innerSpacing == 12,
+                     "alignment and both independent padding choices survive preference round-trip")
         let english = Locale(identifier: "en_US")
         suite.expect(NotchNetworkFormat.reading(45 * 1024, fullUnits: true, locale: english) == "45.0 KB/s",
                      "precise byte mode preserves the decimal and complete per-second unit")

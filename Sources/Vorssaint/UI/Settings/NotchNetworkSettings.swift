@@ -16,6 +16,8 @@ struct NotchNetworkSettings: View {
     @AppStorage(DefaultsKey.notchNetworkOpacity) private var opacity = 0.9
     @AppStorage(DefaultsKey.notchNetworkAlignment) private var alignment = "center"
     @AppStorage(DefaultsKey.notchNetworkArrowGap) private var arrowGap = 3.0
+    @AppStorage(DefaultsKey.notchNetworkOuterSpacing) private var outerSpacing = 0.0
+    @AppStorage(DefaultsKey.notchNetworkInnerSpacing) private var innerSpacing = 0.0
     @State private var appearanceExpanded: Bool
     @State private var behaviorExpanded: Bool
     @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
@@ -32,9 +34,9 @@ struct NotchNetworkSettings: View {
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var style: NotchNetworkStyle { .init(fontSize: fontSize, wingWidth: width, verticalOffset: offset, uploadOnLeft: uploadOnLeft, fullUnits: fullUnits,
         decimals: decimals, weight: weight, tint: tint, opacity: opacity, alignment: alignment, arrowGap: arrowGap,
-        downloadColor: downloadColor, uploadColor: uploadColor, colorScope: colorScope) }
+        downloadColor: downloadColor, uploadColor: uploadColor, colorScope: colorScope, outerSpacing: outerSpacing, innerSpacing: innerSpacing) }
     private var signature: [String] {
-        [String(paused), String(fullUnits), String(decimals), weight, tint, downloadColor, uploadColor, colorScope, String(opacity), alignment, String(arrowGap), String(fontSize), String(width), String(offset), String(uploadOnLeft),
+        [String(paused), String(fullUnits), String(decimals), weight, tint, downloadColor, uploadColor, colorScope, String(opacity), alignment, String(arrowGap), String(outerSpacing), String(innerSpacing), String(fontSize), String(width), String(offset), String(uploadOnLeft),
          String(avoidMenus), String(autoHide), String(threshold), String(delay), String(capsuleDrop)]
     }
 
@@ -50,25 +52,9 @@ struct NotchNetworkSettings: View {
             Text(text.quickHint).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(text.preview).font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                NotchNetworkReadout(bytesPerSecond: uploadOnLeft ? 345_678 : 1_234_567, upload: uploadOnLeft,
-                                    inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
-                                    decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                                    opacity: style.opacity, arrowGap: style.arrowGap,
-                                    downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
-                    .frame(width: style.wingWidth - 16, alignment: style.readingAlignment)
-                NotchNetworkReadout(bytesPerSecond: uploadOnLeft ? 1_234_567 : 345_678, upload: !uploadOnLeft,
-                                    inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
-                                    decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                                    opacity: style.opacity, arrowGap: style.arrowGap,
-                                    downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
-                    .frame(width: style.wingWidth - 16, alignment: style.readingAlignment)
-            }
-            .offset(y: style.offset(in: 32))
-            .padding(.horizontal, 16).frame(height: 32)
-            .background(.black, in: Capsule())
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel(text.chinese ? "网速布局预览，示例数据" : "Network layout preview, sample values")
+            layoutPreview
+            Text(text.previewHint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Text(text.presets)
@@ -102,8 +88,8 @@ struct NotchNetworkSettings: View {
                         Text(text.customColor).tag("custom")
                     }.pickerStyle(.menu)
                     if tint == "custom" {
-                        ColorPicker(text.downloadColor, selection: colorBinding($downloadColor, fallback: "B3D1FF"), supportsOpacity: false)
-                        ColorPicker(text.uploadColor, selection: colorBinding($uploadColor, fallback: "73F2FF"), supportsOpacity: false)
+                        NotchNetworkColorPicker(title: text.downloadColor, hex: $downloadColor, fallback: "B3D1FF", text: text)
+                        NotchNetworkColorPicker(title: text.uploadColor, hex: $uploadColor, fallback: "73F2FF", text: text)
                     }
                     if tint != "white" {
                         Picker(text.colorScope, selection: $colorScope) {
@@ -118,12 +104,17 @@ struct NotchNetworkSettings: View {
                     }
                     Picker(text.alignment, selection: $alignment) {
                         Text(text.leading).tag("leading"); Text(text.center).tag("center"); Text(text.trailing).tag("trailing")
+                        Text(text.outside).tag("outside")
                     }.pickerStyle(.menu)
+                    Text(text.alignmentHint).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    slider(text.outerSpacing, value: $outerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.outerSpacing)) pt")
+                    slider(text.innerSpacing, value: $innerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.innerSpacing)) pt")
                     slider(text.gap, value: $arrowGap, range: 2...10, step: 1, valueText: "\(Int(style.arrowGap)) pt")
-                    slider(text.font, value: $fontSize, range: 9...16, step: 1, valueText: "\(Int(style.fontSize)) pt")
+                    slider(text.font, value: $fontSize, range: 8...18, step: 0.5, valueText: String(format: "%g pt", Double(style.fontSize)))
                     slider(text.width, value: $width,
                            range: Double(NotchNetworkStyle.minimumWidth(fontSize: style.fontSize, fullUnits: fullUnits,
-                                                                        decimals: decimals, arrowGap: arrowGap))...180,
+                                                                        decimals: decimals, arrowGap: arrowGap, outerSpacing: outerSpacing, innerSpacing: innerSpacing))...240,
                            step: 1, valueText: "\(Int(style.wingWidth)) pt")
                     slider(text.offset, value: $offset, range: -3...3, step: 1, valueText: "\(Int(style.verticalOffset)) pt")
                     Text(text.widthHint).font(.caption).foregroundStyle(.secondary)
@@ -157,6 +148,7 @@ struct NotchNetworkSettings: View {
                     .controlSize(.small)
             }
         }
+        .disclosureGroupStyle(SettingsDisclosureStyle())
         .onChange(of: style) { _, new in
             if !width.isFinite || width < Double(new.wingWidth) { width = Double(new.wingWidth) }
         }
@@ -166,15 +158,17 @@ struct NotchNetworkSettings: View {
     private func resetAppearance() {
         fontSize = 10; width = 72; offset = 0; uploadOnLeft = false
         decimals = 1; weight = "medium"; tint = "white"; opacity = 0.9; alignment = "center"; arrowGap = 3
+        outerSpacing = 0; innerSpacing = 0
         downloadColor = "B3D1FF"; uploadColor = "73F2FF"; colorScope = "all"
     }
 
     private func applyPreset(_ preset: Int) {
-        resetAppearance()
+        // A size preset must not discard a palette the user just selected.
+        weight = "medium"
         switch preset {
         case 0: fullUnits = false; fontSize = 9; width = 64
-        case 2: fullUnits = true; fontSize = 13; width = 140; weight = "bold"; opacity = 1
-        default: fullUnits = true; width = 100
+        case 2: fullUnits = true; fontSize = 13; width = 140; weight = "bold"
+        default: fullUnits = true; fontSize = 10; width = 100
         }
     }
 
@@ -194,13 +188,40 @@ struct NotchNetworkSettings: View {
         }
     }
 
-    private func colorBinding(_ storage: Binding<String>, fallback: String) -> Binding<Color> {
-        Binding {
-            let rgb = MenuBarUsageBarSupport.rgb(for: storage.wrappedValue, fallback: fallback)
-            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
-        } set: { color in
-            guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
-            storage.wrappedValue = MenuBarUsageBarSupport.hex(red: Double(rgb.redComponent), green: Double(rgb.greenComponent), blue: Double(rgb.blueComponent))
+    private var layoutPreview: some View {
+        GeometryReader { proxy in
+            let camera = service.geometry.floats ? 0 : service.geometry.cameraWidth
+            let total = style.wingWidth * 2 + camera
+            let scale = min(1, proxy.size.width / max(1, total))
+            HStack(spacing: 0) {
+                sample(upload: uploadOnLeft, leading: true)
+                if camera > 0 {
+                    Text(text.chinese ? "刘海" : "Camera")
+                        .font(.system(size: 9)).foregroundStyle(.white.opacity(0.28))
+                        .frame(width: camera)
+                        .accessibilityHidden(true)
+                }
+                sample(upload: !uploadOnLeft, leading: false)
+            }
+            .offset(y: style.offset(in: 32))
+            .frame(width: total, height: 32)
+            .background(.black, in: Capsule())
+            .scaleEffect(scale)
+            .frame(width: proxy.size.width, height: 44)
         }
+        .frame(height: 44)
+        .accessibilityLabel(text.chinese ? "网速布局预览，示例数据" : "Network layout preview, sample values")
+    }
+
+    private func sample(upload: Bool, leading: Bool) -> some View {
+        NotchNetworkReadout(bytesPerSecond: upload ? 345_678 : 1_234_567, upload: upload,
+                            inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
+                            decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
+                            opacity: style.opacity, arrowGap: style.arrowGap,
+                            downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
+            .frame(maxWidth: .infinity, alignment: style.readingAlignment(leadingSide: leading))
+            .padding(.leading, leading ? style.outerSpacing + 16 : style.innerSpacing)
+            .padding(.trailing, leading ? style.innerSpacing : style.outerSpacing + 16)
+            .frame(width: style.wingWidth)
     }
 }

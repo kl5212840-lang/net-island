@@ -24,9 +24,9 @@ struct NotchNetworkStrings {
     var bytes: String { text("Bytes per second (B/s)", "字节/秒（B/s）", "位元組/秒（B/s）") }
     var bits: String { text("Bits per second (bit/s)", "比特/秒（bit/s）", "位元/秒（bit/s）") }
     var font: String { text("Font size", "字体大小", "字體大小") }
-    var width: String { text("Width on each side", "每侧读数区宽度", "每側讀數區寬度") }
+    var width: String { text("Resting island width per side", "空闲岛每侧宽度", "閒置島每側寬度") }
     var offset: String { text("Reading vertical offset", "读数上下偏移", "讀數上下偏移") }
-    var widthHint: String { text("Width grows when needed for larger text. The physical camera stays fixed.", "字号较大时，宽度会自动保证读数完整。摄像头的位置保持固定。", "字體較大時，寬度會自動確保讀數完整。攝像頭的位置保持固定。") }
+    var widthHint: String { text("Smaller side widths make the resting island narrower. The minimum fits the selected font, units and padding. Camera space stays fixed; overall height and expanded size are in the Layout tab.", "每侧越窄，空闲岛越窄；最小宽度会适配字号、单位和留白。刘海区域保持固定，整体高度和展开大小可在“布局”标签页调整。", "每側越窄，閒置島越窄；最小寬度會適應字體大小、單位和留白。瀏海區域保持固定，整體高度和展開大小可在「佈局」標籤頁調整。") }
     var uploadOnLeft: String { text("Upload on the left", "上传显示在左侧", "上傳顯示在左側") }
     var avoidMenus: String { text("Yield to native menus", "优先避让原生菜单", "優先避讓原生選單") }
     var avoidHint: String { text("Hide both readings when the menu bar has too little room. Requires Accessibility; other island activities follow their own setting.", "菜单栏空间不足时隐藏两侧读数，需要辅助功能权限。其他活动仍使用原来的遮挡设置。", "選單列空間不足時隱藏兩側讀數，需要輔助使用權限。其他活動仍使用原來的遮擋設定。") }
@@ -40,7 +40,7 @@ struct NotchNetworkStrings {
     var smallPreset: String { text("Save space", "省空间", "省空間") }
     var balancedPreset: String { text("Balanced", "均衡", "均衡") }
     var clearPreset: String { text("Easy to read", "清晰", "清晰") }
-    var presetHint: String { text("Presets change appearance only. Your on/off and menu behavior choices stay as set.", "预设只调整外观，保留开关和菜单避让等行为设置。", "預設只調整外觀，保留開關和選單避讓等行為設定。") }
+    var presetHint: String { text("Presets adjust size, format and weight. Your colors, alignment, padding and behavior choices stay as set.", "预设调整字号、宽度、格式和字重，保留颜色、对齐、留白及行为设置。", "預設調整字體大小、寬度、格式和字重，保留顏色、對齊、留白及行為設定。") }
     var decimals: String { text("Decimal places", "小数位数", "小數位數") }
     var appearance: String { text("Font and layout", "字体与布局", "字體與佈局") }
     var behavior: String { text("Menu space and automatic hiding", "菜单空间与自动隐藏", "選單空間與自動隱藏") }
@@ -63,5 +63,14 @@ struct NotchNetworkStrings {
     var leading: String { text("Left", "左对齐", "靠左") }
     var center: String { text("Center", "居中", "置中") }
     var trailing: String { text("Right", "右对齐", "靠右") }
+    var outside: String { text("Both outer edges", "两侧对齐", "兩側對齊") }
+    var alignmentHint: String { text("Both outer edges aligns the left reading left and the right reading right, even when upload/download swap sides.", "两侧对齐：左侧读数靠左，右侧读数靠右；交换上下行位置后仍保持对称。", "兩側對齊：左側讀數靠左，右側讀數靠右；交換上下行位置後仍保持對稱。") }
+    var outerSpacing: String { text("Extra outer padding", "外侧额外留白", "外側額外留白") }
+    var innerSpacing: String { text("Padding beside the camera", "靠近刘海的留白", "靠近瀏海的留白") }
+    var previewHint: String { text("Camera space, when present, stays reserved. Side widths control the resting island’s total width. Preview scales to fit; actual font size stays as set.", "有刘海时会固定预留中间区域；每侧宽度决定空闲岛的总宽度。预览按可用空间缩放，实际字号不变。", "有瀏海時會固定預留中間區域；每側寬度決定閒置島的總寬度。預覽依可用空間縮放，實際字體大小不變。") }
+    var done: String { text("Done", "完成", "完成") }
+    var colorSaved: String { text("Color changes are saved immediately.", "颜色已实时保存", "顏色已即時儲存") }
+    var expanded: String { text("Expanded", "已展开", "已展開") }
+    var collapsed: String { text("Collapsed", "已收起", "已收起") }
     var gap: String { text("Arrow spacing", "箭头与数值间距", "箭頭與數值間距") }
 }

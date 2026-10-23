@@ -58,6 +58,7 @@ struct NotchNetworkReadout: View {
 /// animate the island. The persisted unit follows the existing Network panel.
 struct NotchNetworkWing: View {
     var upload = false
+    var leadingSide = true
     var style = NotchNetworkStyle()
     var bodyHeight: CGFloat = 24
     @ObservedObject private var monitor = SystemMonitor.shared
@@ -69,7 +70,9 @@ struct NotchNetworkWing: View {
                             decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
                             opacity: style.opacity, arrowGap: style.arrowGap,
                             downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
-            .frame(maxWidth: .infinity, alignment: style.readingAlignment)
+            .frame(maxWidth: .infinity, alignment: style.readingAlignment(leadingSide: leadingSide))
+            .padding(.leading, leadingSide ? style.outerSpacing : style.innerSpacing)
+            .padding(.trailing, leadingSide ? style.innerSpacing : style.outerSpacing)
             .offset(y: style.offset(in: bodyHeight))
     }
 }
@@ -109,5 +112,8 @@ struct NotchNetworkToggle: View {
 
 extension NotchNetworkStyle {
     var fontWeight: Font.Weight { weight == "bold" ? .bold : (weight == "regular" ? .regular : .medium) }
-    var readingAlignment: Alignment { alignment == "leading" ? .leading : (alignment == "trailing" ? .trailing : .center) }
+    func readingAlignment(leadingSide: Bool) -> Alignment {
+        let side = alignment(onLeadingSide: leadingSide)
+        return side == "leading" ? .leading : (side == "trailing" ? .trailing : .center)
+    }
 }

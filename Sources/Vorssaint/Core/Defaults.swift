@@ -828,6 +828,8 @@ enum DefaultsKey {
     static let notchNetworkArrowGap = "notchNetworkArrowGap"
     static let notchNetworkFontSize = "notchNetworkFontSize"
     static let notchNetworkWidth = "notchNetworkWidth"
+    static let notchNetworkOuterSpacing = "notchNetworkOuterSpacing"
+    static let notchNetworkInnerSpacing = "notchNetworkInnerSpacing"
     static let notchNetworkOffset = "notchNetworkOffset"
     static let notchNetworkUploadOnLeft = "notchNetworkUploadOnLeft"
     static let notchNetworkAvoidMenus = "notchNetworkAvoidMenus"
@@ -1460,6 +1462,8 @@ enum Defaults {
         DefaultsKey.notchNetworkArrowGap: 3.0,
         DefaultsKey.notchNetworkFontSize: 10.0,
         DefaultsKey.notchNetworkWidth: 72.0,
+        DefaultsKey.notchNetworkOuterSpacing: 0.0,
+        DefaultsKey.notchNetworkInnerSpacing: 0.0,
         DefaultsKey.notchNetworkOffset: 0.0,
         DefaultsKey.notchNetworkUploadOnLeft: false,
         DefaultsKey.notchNetworkAvoidMenus: false,

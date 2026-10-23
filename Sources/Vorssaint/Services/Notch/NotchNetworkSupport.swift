@@ -19,14 +19,20 @@ struct NotchNetworkStyle: Equatable {
     var opacity = 0.9
     var alignment = "center"
     var arrowGap: CGFloat = 3
+    var outerSpacing: CGFloat = 0
+    var innerSpacing: CGFloat = 0
 
     init(fontSize: Double = 10, wingWidth: Double = 72, verticalOffset: Double = 0, uploadOnLeft: Bool = false, fullUnits: Bool = false,
          decimals: Int = 1, weight: String = "medium", tint: String = "white", opacity: Double = 0.9,
          alignment: String = "center", arrowGap: Double = 3,
-         downloadColor: String = "B3D1FF", uploadColor: String = "73F2FF", colorScope: String = "all") {
-        self.fontSize = Self.clamp(fontSize, 9...16, fallback: 10).rounded()
-        self.wingWidth = max(Self.minimumWidth(fontSize: self.fontSize, fullUnits: fullUnits, decimals: decimals, arrowGap: arrowGap),
-                             Self.clamp(wingWidth, 64...180, fallback: 72).rounded())
+         downloadColor: String = "B3D1FF", uploadColor: String = "73F2FF", colorScope: String = "all",
+         outerSpacing: Double = 0, innerSpacing: Double = 0) {
+        self.fontSize = (Self.clamp(fontSize, 8...18, fallback: 10) * 2).rounded() / 2
+        self.outerSpacing = Self.clamp(outerSpacing, 0...24, fallback: 0)
+        self.innerSpacing = Self.clamp(innerSpacing, 0...24, fallback: 0)
+        self.wingWidth = max(Self.minimumWidth(fontSize: self.fontSize, fullUnits: fullUnits, decimals: decimals, arrowGap: arrowGap,
+                                               outerSpacing: Double(self.outerSpacing), innerSpacing: Double(self.innerSpacing)),
+                             Self.clamp(wingWidth, 48...240, fallback: 72).rounded())
         self.verticalOffset = Self.clamp(verticalOffset, -3...3, fallback: 0).rounded()
         self.uploadOnLeft = uploadOnLeft
         self.fullUnits = fullUnits
@@ -37,13 +43,19 @@ struct NotchNetworkStyle: Equatable {
         self.uploadColor = MenuBarUsageBarSupport.sanitizedColorHex(uploadColor, fallback: "73F2FF")
         self.colorScope = colorScope == "arrows" ? "arrows" : "all"
         self.opacity = Double(Self.clamp(opacity, 0.6...1, fallback: 0.9))
-        self.alignment = ["leading", "center", "trailing"].contains(alignment) ? alignment : "center"
+        self.alignment = ["leading", "center", "trailing", "outside"].contains(alignment) ? alignment : "center"
         self.arrowGap = Self.clamp(arrowGap, 2...10, fallback: 3)
     }
 
-    static func minimumWidth(fontSize: CGFloat, fullUnits: Bool = false, decimals: Int = 1, arrowGap: Double = 3) -> CGFloat {
+    static func minimumWidth(fontSize: CGFloat, fullUnits: Bool = false, decimals: Int = 1, arrowGap: Double = 3,
+                             outerSpacing: Double = 0, innerSpacing: Double = 0) -> CGFloat {
         let digits = CGFloat(min(2, max(0, decimals)) - 1)
-        return ceil(fontSize * (fullUnits ? 8 + digits * 0.6 : 4.9) + 19 + clamp(arrowGap, 2...10, fallback: 3) - 3)
+        return ceil(fontSize * (fullUnits ? 8 + digits * 0.6 : 4.9) + 19 + clamp(arrowGap, 2...10, fallback: 3) - 3
+                    + clamp(outerSpacing, 0...24, fallback: 0) + clamp(innerSpacing, 0...24, fallback: 0))
+    }
+
+    func alignment(onLeadingSide leading: Bool) -> String {
+        alignment == "outside" ? (leading ? "leading" : "trailing") : alignment
     }
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>, fallback: Double) -> CGFloat {
@@ -81,7 +93,9 @@ struct NotchNetworkStyle: Equatable {
              arrowGap: defaults.object(forKey: DefaultsKey.notchNetworkArrowGap) as? Double ?? 3,
              downloadColor: defaults.string(forKey: DefaultsKey.notchNetworkDownloadColor) ?? "B3D1FF",
              uploadColor: defaults.string(forKey: DefaultsKey.notchNetworkUploadColor) ?? "73F2FF",
-             colorScope: defaults.string(forKey: DefaultsKey.notchNetworkColorScope) ?? "all")
+             colorScope: defaults.string(forKey: DefaultsKey.notchNetworkColorScope) ?? "all",
+             outerSpacing: defaults.double(forKey: DefaultsKey.notchNetworkOuterSpacing),
+             innerSpacing: defaults.double(forKey: DefaultsKey.notchNetworkInnerSpacing))
     }
 }
 

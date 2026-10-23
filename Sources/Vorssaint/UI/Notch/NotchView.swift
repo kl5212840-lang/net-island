@@ -792,7 +792,7 @@ struct NotchRestingStrip: View {
                             NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
                         case .network:
-                            NotchNetworkWing(upload: !geometry.networkStyle.uploadOnLeft, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
+                            NotchNetworkWing(upload: !geometry.networkStyle.uploadOnLeft, leadingSide: false, style: geometry.networkStyle, bodyHeight: geometry.stripBodyHeight)
                                 .padding(.trailing, restingBatteryInset)
                         case .none: EmptyView()
                         }
