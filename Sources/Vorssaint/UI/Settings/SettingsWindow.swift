@@ -25,6 +25,20 @@ class SettingsWindow: NSWindow {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @discardableResult
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        let accepted = super.makeFirstResponder(responder)
+        // Accessibility focus and native field-editor changes can bypass
+        // mouse dispatch, including a second click in an already-focused field.
+        // Only an on-screen key window's editable responder claims activation.
+        if accepted, isVisible, isKeyWindow,
+           (firstResponder as? NSTextView)?.isEditable == true
+                || (firstResponder as? NSTextField)?.isEditable == true {
+            activateForKeyboardInput()
+        }
+        return accepted
+    }
+
     static func navigationMenu(language: AppLanguage) -> NSMenu {
         let strings = SettingsNavigationStrings.localized(language)
         let menu = NSMenu(title: strings.go)

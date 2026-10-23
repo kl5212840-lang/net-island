@@ -63,7 +63,10 @@ enum SettingsWindowTests {
         // rename fields, including Chinese composition, retain AppKit editing.
         let field = NSTextField(frame: NSRect(x: 10, y: 10, width: 200, height: 24))
         target.addSubview(field)
+        let beforeEditing = window.activationRequests
         window.makeFirstResponder(field)
+        expect(window.activationRequests > beforeEditing,
+               "focusing an editable Settings field activates without requiring another window click")
         let editor = window.firstResponder as? NSTextView
         editor?.insertText("Preset 123", replacementRange: NSRange(location: NSNotFound, length: 0))
         expect(editor?.string == "Preset 123", "the Settings field editor accepts letters and digits")
@@ -73,7 +76,18 @@ enum SettingsWindowTests {
         expect(window.firstResponder === editor && editor?.hasMarkedText() == true,
                "activation recovery preserves the field editor and Chinese composition")
         editor?.unmarkText()
+        let beforeRefocus = window.activationRequests
+        window.makeFirstResponder(editor)
+        expect(window.activationRequests > beforeRefocus,
+               "refocusing the existing field editor recovers activation after switching apps")
         window.makeFirstResponder(nil)
+        window.testIsKeyWindow = false
+        let beforeBackground = window.activationRequests
+        window.makeFirstResponder(field)
+        expect(window.activationRequests == beforeBackground,
+               "an inactive background Settings window does not claim activation on responder updates")
+        window.makeFirstResponder(nil)
+        window.testIsKeyWindow = true
         window.contentView = originalContent
 
         let mainMenu = NSMenu()
