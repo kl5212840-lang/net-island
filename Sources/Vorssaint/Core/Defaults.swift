@@ -810,6 +810,11 @@ enum DefaultsKey {
     static let notchIdleContent = "notchIdleContent"
     static let notchNavigationPosition = "notchNavigationPosition"
     static let notchSystemLayout = "notchSystemLayout"
+    static let notchSystemCardScale = "notchSystemCardScale"
+    static let notchSystemHorizontalSpacing = "notchSystemHorizontalSpacing"
+    static let notchSystemVerticalSpacing = "notchSystemVerticalSpacing"
+    static let notchSystemMetricOrder = "notchSystemMetricOrder"
+    static let notchSystemHiddenMetrics = "notchSystemHiddenMetrics"
     static let notchNetworkPaused = "notchNetworkPaused"
     static let notchNetworkFullUnits = "notchNetworkFullUnits"
     static let notchNetworkDecimals = "notchNetworkDecimals"
@@ -1437,6 +1442,11 @@ enum Defaults {
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchNavigationPosition: "top",
         DefaultsKey.notchSystemLayout: "original",
+        DefaultsKey.notchSystemCardScale: 1.0,
+        DefaultsKey.notchSystemHorizontalSpacing: 10.0,
+        DefaultsKey.notchSystemVerticalSpacing: 10.0,
+        DefaultsKey.notchSystemMetricOrder: "",
+        DefaultsKey.notchSystemHiddenMetrics: "",
         DefaultsKey.notchNetworkPaused: false,
         DefaultsKey.notchNetworkFullUnits: false,
         DefaultsKey.notchNetworkDecimals: 1,

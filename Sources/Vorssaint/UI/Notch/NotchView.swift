@@ -381,10 +381,8 @@ struct NotchView: View {
                 Image(systemName: forward ? "chevron.right" : "chevron.left")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
-                    .frame(width: 24, height: 44)
-                    .contentShape(Capsule())
             }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false, highlights: false))
+            .buttonStyle(NotchSectionArrowStyle())
             .help(title).accessibilityLabel(title)
             .accessibilityIdentifier(forward ? "notch.section.next" : "notch.section.previous")
         }

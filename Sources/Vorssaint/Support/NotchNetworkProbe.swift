@@ -35,6 +35,11 @@ enum NotchNetworkProbe {
             DefaultsKey.notchNetworkAlignment: "center",
             DefaultsKey.notchNavigationPosition: "top",
             DefaultsKey.notchSystemLayout: "original",
+            DefaultsKey.notchSystemCardScale: 1.0,
+            DefaultsKey.notchSystemHorizontalSpacing: 10.0,
+            DefaultsKey.notchSystemVerticalSpacing: 10.0,
+            DefaultsKey.notchSystemMetricOrder: "",
+            DefaultsKey.notchSystemHiddenMetrics: "",
             "AppleShowScrollBars": "Always",
             DefaultsKey.notchNetworkWidth: arguments.contains("--large") ? 144.0 : 72.0,
             DefaultsKey.notchNetworkOffset: arguments.contains("--large") ? 3.0 : 0.0,
@@ -136,7 +141,43 @@ enum NotchNetworkProbe {
         overrides[DefaultsKey.notchSystemLayout] = "original"
         UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
         capture(AnyView(NotchSystemLayoutSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
-                size: CGSize(width: 460, height: 250), name: "system-layout-settings-\(language)", output: output, failures: &failures)
+                size: CGSize(width: 460, height: 1000), name: "system-layout-settings-\(language)", output: output, failures: &failures)
+        for profile in ["small", "large", "reordered", "empty"] {
+            overrides[DefaultsKey.notchNavigationPosition] = "top"
+            overrides[DefaultsKey.notchSystemCardScale] = profile == "small" ? 0.8 : profile == "large" ? 1.35 : 1.0
+            overrides[DefaultsKey.notchSystemHorizontalSpacing] = profile == "small" ? 4.0 : profile == "large" ? 24.0 : 10.0
+            overrides[DefaultsKey.notchSystemVerticalSpacing] = profile == "small" ? 4.0 : profile == "large" ? 24.0 : 10.0
+            overrides[DefaultsKey.notchSystemMetricOrder] = profile == "reordered" ? "network,memory,cpu" : ""
+            overrides[DefaultsKey.notchSystemHiddenMetrics] = profile == "empty"
+                ? NotchSystemMetric.allCases.map(\.rawValue).joined(separator: ",")
+                : profile == "reordered" ? "gpu,disk,power,connectedDevices" : ""
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            for width: CGFloat in [360, 480, 600] {
+                let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                             layout: .custom, customWidth: Double(width), customHeight: 360)
+                NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .system)
+                let size = NotchService.shared.surfaceSize
+                capture(AnyView(NotchView(service: .shared).background(.black)
+                    .clipShape(NotchShape.island(height: size.height, geometry: geometry))), size: size,
+                        name: "system-\(profile)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+            }
+            if profile == "reordered" {
+                capture(AnyView(NotchSystemLayoutSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                        size: CGSize(width: 760, height: 1000), name: "system-custom-settings-\(language)", output: output, failures: &failures)
+            }
+        }
+        overrides[DefaultsKey.notchSystemCardScale] = 1.0
+        overrides[DefaultsKey.notchSystemHorizontalSpacing] = 10.0
+        overrides[DefaultsKey.notchSystemVerticalSpacing] = 10.0
+        overrides[DefaultsKey.notchSystemMetricOrder] = ""
+        overrides[DefaultsKey.notchSystemHiddenMetrics] = ""
+        UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+        let arrowStates = HStack(spacing: 40) {
+            arrowState("Resting", pressed: false, reduced: false)
+            arrowState("Pressed", pressed: true, reduced: false)
+            arrowState("Reduce Motion", pressed: true, reduced: true)
+        }.padding(24).foregroundStyle(.white).background(.black)
+        capture(AnyView(arrowStates), size: CGSize(width: 460, height: 130), name: "arrow-press-states-\(language)", output: output, failures: &failures)
         NotchService.shared.prepareNetworkProbe(geometry: hanging, expanded: false)
         overrides[DefaultsKey.notchNetworkAutoHide] = true
         UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
@@ -151,6 +192,16 @@ enum NotchNetworkProbe {
         monitor.setNotchDetailNeeds(.none)
         print(failures.isEmpty ? "NETWORK ISLAND OK" : "NETWORK ISLAND FAILED: " + failures.joined(separator: "; "))
         exit(failures.isEmpty ? 0 : 1)
+    }
+
+    private static func arrowState(_ title: String, pressed: Bool, reduced: Bool) -> some View {
+        VStack(spacing: 8) {
+            Text(title).font(.system(size: 11))
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .modifier(NotchArrowPressFeedback(pressed: pressed, reduceMotion: reduced))
+                .frame(width: 24, height: 44)
+        }
     }
 
     private static func capture(_ view: AnyView, size: CGSize, name: String, output: URL, failures: inout [String], island: Bool = false) {

@@ -4,6 +4,35 @@
 import AppKit
 import SwiftUI
 
+/// A bare glyph sinks on press and springs back without moving its hit area.
+struct NotchSectionArrowStyle: ButtonStyle {
+    @State private var hovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .modifier(NotchArrowPressFeedback(pressed: configuration.isPressed, reduceMotion: reduceMotion))
+            .brightness(hovered && !configuration.isPressed ? 0.12 : 0)
+            .frame(width: 24, height: 44)
+            .contentShape(Capsule())
+            .onHover { hovered = $0 }
+    }
+}
+
+struct NotchArrowPressFeedback: ViewModifier {
+    let pressed: Bool
+    var reduceMotion = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(pressed && !reduceMotion ? 0.86 : 1)
+            .offset(y: pressed && !reduceMotion ? 1.5 : 0)
+            .opacity(pressed ? 0.75 : 1)
+            .animation(reduceMotion ? nil : pressed ? .easeOut(duration: 0.09)
+                       : .spring(response: 0.24, dampingFraction: 0.72), value: pressed)
+    }
+}
+
 /// Feedback is local to a visible control. No recurring work is needed.
 /// The pointer lifts a control slightly and a press settles it back, which is
 /// what makes the panel feel physical rather than painted on.

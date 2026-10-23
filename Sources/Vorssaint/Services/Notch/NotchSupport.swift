@@ -1995,13 +1995,7 @@ enum NotchSupport {
     /// Power draw has a card of its own beside the battery; fans join once
     /// the monitor reports one.
     static func systemCardCount(hasBattery: Bool, fans: Int = 0, in defaults: UserDefaults = .standard) -> Int {
-        [.monitorCPU, .monitorGPU, .monitorMemory, .monitorDisk].filter {
-            (feature: AppFeature) in feature.isAvailable(in: defaults)
-        }.count + (AppFeature.monitorNetwork.isAvailable(in: defaults) ? 1 : 0)
-            + (hasBattery && AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
-            + (AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
-            + (fans > 0 && AppFeature.fanControl.isAvailable(in: defaults) ? 1 : 0)
-            + (AppFeature.connectedDevices.isAvailable(in: defaults) ? 1 : 0)
+        NotchSystemConfiguration.stored(in: defaults).visible(hasBattery: hasBattery, fans: fans, in: defaults).count
     }
 
     /// Direct openings are dismissed explicitly, never by the pointer's
@@ -2229,6 +2223,10 @@ struct NotchNoticeWings: Equatable {
 struct NotchGeometry: Equatable {
     let screen: CGRect
     var networkStyle = NotchNetworkStyle()
+    var systemStyle = NotchSystemStyle()
+    var systemLayout = NotchSystemLayout.original
+    var systemConfiguration = NotchSystemConfiguration()
+    var systemNavigationInset: CGFloat = 0
     /// How far the island's centre sits right of the camera's: a closed
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
@@ -2707,7 +2705,8 @@ struct NotchGeometry: Equatable {
     var musicPlayerHeight: CGFloat { NotchLayout.musicPlayerHeight(band: musicBandHeight) }
 
     func systemRows(cards: Int) -> Int {
-        NotchLayout.systemRowRanges(count: cards, width: contentWidth - NotchLayout.systemHoverInset(width: contentWidth) * 2).count
+        systemLayout.rows(count: cards, width: max(0, contentWidth - systemNavigationInset * 2),
+                          originalWidth: contentWidth, style: systemStyle).count
     }
 
     func toolRows(count: Int) -> Int {
@@ -2774,7 +2773,7 @@ struct NotchGeometry: Equatable {
             case .system:
                 let cards = max(0, systemCards)
                 contentHeight = min(budget, cards == 0 ? NotchLayout.emptyHeight
-                    : NotchLayout.railHeight(rows: systemRows(cards: cards), rowHeight: NotchLayout.systemCardHeight, spacing: NotchLayout.rowSpacing)
+                    : NotchLayout.railHeight(rows: systemRows(cards: cards), rowHeight: systemStyle.cardHeight, spacing: systemStyle.verticalSpacing)
                         + NotchLayout.systemHoverInset(width: contentWidth) * 2)
             case .tools:
                 guard let toolCount else { contentHeight = pageBudget; break }

@@ -7,6 +7,65 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    private static func systemCustomizationContracts(_ suite: TestSuite) {
+        let defaults = UserDefaults(suiteName: "com.vorssaint.tests.notch-system-customization")!
+        defaults.removePersistentDomain(forName: "com.vorssaint.tests.notch-system-customization")
+        defer { defaults.removePersistentDomain(forName: "com.vorssaint.tests.notch-system-customization") }
+        for metric in NotchSystemMetric.allCases { defaults.set(true, forKey: metric.feature.availabilityKey) }
+        let original = NotchSystemConfiguration.stored(in: defaults)
+        suite.expect(original.order.map(\.rawValue) == ["cpu", "gpu", "memory", "battery", "network", "disk", "power", "fan", "connectedDevices"]
+                     && original.hidden.isEmpty && NotchSystemStyle.stored(in: defaults) == .init(),
+                     "new settings preserve upstream size, gaps, visibility and reading order")
+        let imported = NotchSystemConfiguration(order: "network,cpu,network,unknown", hidden: "gpu,unknown,gpu")
+        suite.expect(imported.order.prefix(2) == [.network, .cpu] && Set(imported.order).count == 9
+                     && imported.hidden == [.gpu], "imported metric queues remove duplicates and append missing readings")
+        defaults.set("network,cpu", forKey: DefaultsKey.notchSystemMetricOrder)
+        defaults.set("gpu,power", forKey: DefaultsKey.notchSystemHiddenMetrics)
+        let customized = NotchSystemConfiguration.stored(in: defaults)
+        suite.expect(customized.visible(hasBattery: true, fans: 1, in: defaults).prefix(2) == [.network, .cpu]
+                     && customized.visible(hasBattery: true, fans: 1, in: defaults).count == 7,
+                     "saved order and visibility agree with the System page card count")
+        suite.expect(NotchSupport.systemCardCount(hasBattery: true, fans: 1, in: defaults) == 7,
+                     "the island geometry counts only displayed System cards")
+        suite.expect(!customized.visible(hasBattery: false, fans: 0, in: defaults).contains(.battery)
+                     && !customized.visible(hasBattery: false, fans: 0, in: defaults).contains(.fan),
+                     "hardware availability still gates customized readings")
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        suite.expect(!customized.visible(hasBattery: true, fans: 1, in: defaults).contains(.network)
+                     && customized.order.first == .network, "temporarily unavailable readings retain their saved slot")
+        defaults.set(NotchSystemMetric.allCases.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchSystemHiddenMetrics)
+        suite.expect(NotchSupport.systemCardCount(hasBattery: true, fans: 1, in: defaults) == 0,
+                     "hiding every reading produces the recoverable empty state instead of a phantom card")
+        suite.expect(NotchSystemStyle(scale: .nan, horizontalSpacing: .infinity, verticalSpacing: -.infinity) == .init()
+                     && NotchSystemStyle(scale: 3, horizontalSpacing: -2, verticalSpacing: 100)
+                        == .init(scale: 1.35, horizontalSpacing: 4, verticalSpacing: 24),
+                     "invalid imported dimensions cannot overflow or collapse the system grid")
+        for width: CGFloat in [272, 416, 544] {
+            for count in 0...9 {
+                let originalWidth = width + 32
+                suite.expect(NotchSystemLayout.original.rows(count: count, width: width, originalWidth: originalWidth)
+                             == NotchLayout.systemRowRanges(count: count, width: originalWidth - NotchLayout.systemHoverInset(width: originalWidth) * 2),
+                             "default styling keeps the exact upstream balanced row distribution")
+            }
+            for scale in [0.8, 1.35] {
+                for spacing in [4.0, 24.0] {
+                    let style = NotchSystemStyle(scale: scale, horizontalSpacing: spacing, verticalSpacing: spacing)
+                    for layout in NotchSystemLayout.allCases {
+                        let rows = layout.rows(count: 9, width: width, originalWidth: width + 32, style: style)
+                        suite.expect(rows.flatMap { Array($0) } == Array(0..<9),
+                                     "custom card dimensions never lose or duplicate readings")
+                    }
+                }
+            }
+        }
+        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180,
+                                     layout: .spacious)
+        let originalHeight = geometry.expandedSize(module: .system, systemCards: 3).height
+        geometry.systemStyle = .init(scale: 1.35, horizontalSpacing: 24, verticalSpacing: 24)
+        suite.expect(geometry.expandedSize(module: .system, systemCards: 3).height > originalHeight,
+                     "enlarged cards and spacing participate in the actual island height calculation")
+    }
+
     private static func networkCustomizationContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-network-controls"
         let defaults = UserDefaults(suiteName: domain)!
@@ -1769,6 +1828,7 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        systemCustomizationContracts(suite)
         networkCustomizationContracts(suite)
         shortcutContracts(suite)
         let previewStrip: CGFloat = 37

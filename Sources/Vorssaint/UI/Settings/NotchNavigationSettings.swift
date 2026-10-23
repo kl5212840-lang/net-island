@@ -26,29 +26,3 @@ struct NotchNavigationSettings: View {
         }
     }
 }
-
-struct NotchSystemLayoutSettings: View {
-    @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchSystemLayout) private var layout = "original"
-    private var chinese: Bool { NotchNetworkStrings(l10n.language).chinese }
-
-    var body: some View {
-        SettingsCard(title: chinese ? "系统卡片布局" : "System card layout") {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker(chinese ? "排列方式" : "Arrangement", selection: Binding(
-                    get: { NotchSystemLayout.resolved(layout).rawValue }, set: { layout = $0 }
-                )) {
-                    Text(chinese ? "原版排列" : "Original arrangement").tag("original")
-                    Text(chinese ? "自动适应" : "Fit available width").tag("adaptive")
-                    Text(chinese ? "双列" : "Two columns").tag("twoColumns")
-                    Text(chinese ? "三列" : "Three columns").tag("threeColumns")
-                }
-                .pickerStyle(.menu)
-                Text(chinese
-                     ? "默认保留原版的卡片排列，不因左右切换箭头而减少列数。自动适应按剩余宽度排列；双列、三列在空间过窄时自动减少列数。修改立即生效并保存。"
-                     : "Original preserves the previous row arrangement when side arrows are shown. Fit available width adapts to the remaining space. Two or three columns use fewer columns when the island is too narrow. Changes apply immediately and are saved.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}

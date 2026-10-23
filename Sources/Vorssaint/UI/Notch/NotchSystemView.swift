@@ -11,7 +11,17 @@ struct NotchSystemView: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.notchSystemLayout) private var systemLayout = "original"
+    @AppStorage(DefaultsKey.notchSystemCardScale) private var cardScale = 1.0
+    @AppStorage(DefaultsKey.notchSystemHorizontalSpacing) private var horizontalSpacing = 10.0
+    @AppStorage(DefaultsKey.notchSystemVerticalSpacing) private var verticalSpacing = 10.0
+    @AppStorage(DefaultsKey.notchSystemMetricOrder) private var metricOrder = ""
+    @AppStorage(DefaultsKey.notchSystemHiddenMetrics) private var hiddenMetrics = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var style: NotchSystemStyle {
+        .init(scale: cardScale, horizontalSpacing: horizontalSpacing, verticalSpacing: verticalSpacing)
+    }
+    private var configuration: NotchSystemConfiguration { .init(order: metricOrder, hidden: hiddenMetrics) }
 
     private struct Card: Identifiable {
         let kind: MetricDetailKind
@@ -85,7 +95,8 @@ struct NotchSystemView: View {
             cards.append(Card(kind: .connectedDevices, title: strings.title, symbol: "cable.connector",
                               value: "\(snapshot.connectedDevices.count)"))
         }
-        return cards
+        let readings = Dictionary(uniqueKeysWithValues: cards.map { ($0.kind.rawValue, $0) })
+        return configuration.order.filter { !configuration.hidden.contains($0) }.compactMap { readings[$0.rawValue] }
     }
 
     private func isBusy(_ level: Double?) -> Bool {
@@ -96,13 +107,18 @@ struct NotchSystemView: View {
     var body: some View {
         let cards = cards
         if cards.isEmpty {
-            NotchEmptyView(symbol: "gauge.with.dots.needle.50percent", message: l10n.s.monitorUnavailable)
+            let chinese = NotchNetworkStrings(l10n.language).chinese
+            NotchEmptyView(symbol: "gauge.with.dots.needle.50percent",
+                           message: chinese ? "没有可显示的系统指标" : "No System readings to show") {
+                Button(chinese ? "选择指标" : "Choose readings") { NotchService.shared.openSettings(showing: .system) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
         } else {
             let inset = NotchLayout.systemHoverInset(width: size.width)
             let rows = NotchSystemLayout.resolved(systemLayout).rows(count: cards.count, width: size.width,
-                                                                    originalWidth: originalWidth ?? size.width)
-            let height = NotchLayout.railHeight(rows: rows.count, rowHeight: NotchLayout.systemCardHeight,
-                                               spacing: NotchLayout.rowSpacing) + inset * 2
+                                                                    originalWidth: originalWidth ?? size.width, style: style)
+            let height = NotchLayout.railHeight(rows: rows.count, rowHeight: style.cardHeight,
+                                               spacing: style.verticalSpacing) + inset * 2
             Group {
                 if height > size.height {
                     ScrollView {
@@ -120,9 +136,9 @@ struct NotchSystemView: View {
     }
 
     private func grid(cards: [Card], rows: [Range<Int>]) -> some View {
-        VStack(spacing: NotchLayout.rowSpacing) {
+        VStack(spacing: style.verticalSpacing) {
             ForEach(rows, id: \.lowerBound) { row in
-                HStack(spacing: NotchLayout.rowSpacing) {
+                HStack(spacing: style.horizontalSpacing) {
                     ForEach(Array(cards[row])) { card in
                         cardButton(card)
                             .frame(maxWidth: .infinity)
@@ -134,26 +150,26 @@ struct NotchSystemView: View {
 
     private func cardButton(_ card: Card) -> some View {
         Button { select(card.kind) } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6 * style.scale) {
                 Label(card.title, systemImage: card.symbol)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10 * style.scale, weight: .medium))
                     .foregroundStyle(.secondary).lineLimit(1)
                 Text(card.value ?? "…")
-                    .font(.system(size: card.detail == nil ? 22 : 15, weight: .medium, design: .rounded))
+                    .font(.system(size: (card.detail == nil ? 22 : 15) * style.scale, weight: .medium, design: .rounded))
                     .monospacedDigit().contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.75)
                     .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: card.value)
                 if let detail = card.detail {
-                    Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                    Text(detail).font(.system(size: 11 * style.scale)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
                 } else if let level = card.level {
-                    NotchMeter(value: level, tint: card.wantsAttention ? .orange : .white)
+                    NotchMeter(value: level, height: 5 * style.scale, tint: card.wantsAttention ? .orange : .white)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 12 * style.scale)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: NotchLayout.systemCardHeight)
-            .modifier(NotchControlSurface(cornerRadius: 18))
+            .frame(height: style.cardHeight)
+            .modifier(NotchControlSurface(cornerRadius: 18 * style.scale))
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 18))
+        .buttonStyle(NotchButtonStyle(cornerRadius: 18 * style.scale))
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { select(card.kind) }

@@ -451,7 +451,11 @@ final class NotchService: ObservableObject {
 #if VORSSAINT_DEVELOPMENT
     /// Capture the real view hierarchy without starting application services.
     func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool, selected: NotchModule = .tools) {
-        self.geometry = geometry
+        var configured = geometry
+        configured.systemStyle = .stored()
+        configured.systemLayout = .resolved(UserDefaults.standard.string(forKey: DefaultsKey.notchSystemLayout) ?? "original")
+        configured.systemConfiguration = .stored()
+        self.geometry = configured
         self.expanded = expanded
         modules = [.system, .tools]
         self.selected = selected
@@ -850,6 +854,7 @@ final class NotchService: ObservableObject {
     func previewGeometry(for module: NotchModule) -> NotchGeometry {
         var result = geometry.page(module, controls: NotchSupport.controls(),
                                    sectionsButton: !NotchQuickAccessConfiguration.current().actions.contains(.explore))
+        result.systemNavigationInset = modules.count > 1 ? 16 : 0
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         return result
     }
@@ -905,6 +910,7 @@ final class NotchService: ObservableObject {
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
+        result.systemNavigationInset = modules.count > 1 ? 16 : 0
         // Capture editing has a full toolbar whose actions must stay reachable.
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
@@ -3527,6 +3533,9 @@ final class NotchService: ObservableObject {
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                              barEdge: 1 / max(1, screen.backingScaleFactor))
         result.networkStyle = .stored()
+        result.systemStyle = .stored()
+        result.systemLayout = .resolved(UserDefaults.standard.string(forKey: DefaultsKey.notchSystemLayout) ?? "original")
+        result.systemConfiguration = .stored()
         return result
     }
 

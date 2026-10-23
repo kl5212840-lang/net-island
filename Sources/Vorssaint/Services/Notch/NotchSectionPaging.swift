@@ -10,17 +10,20 @@ enum NotchSystemLayout: String, CaseIterable {
 
     static func resolved(_ value: String) -> Self { Self(rawValue: value) ?? .original }
 
-    func rows(count: Int, width: CGFloat, originalWidth: CGFloat) -> [Range<Int>] {
+    func rows(count: Int, width: CGFloat, originalWidth: CGFloat, style: NotchSystemStyle = .init()) -> [Range<Int>] {
         let available = max(0, width - NotchLayout.systemHoverInset(width: width) * 2)
         switch self {
         case .original:
-            return NotchLayout.systemRowRanges(count: count, width: max(0, originalWidth
-                - NotchLayout.systemHoverInset(width: originalWidth) * 2))
+            let columns = NotchLayout.railCapacity(width: max(0, originalWidth
+                - NotchLayout.systemHoverInset(width: originalWidth) * 2), itemWidth: style.cardWidth,
+                                                 spacing: style.horizontalSpacing)
+            return NotchLayout.systemRowRanges(count: count, columns: columns)
         case .adaptive:
-            return NotchLayout.systemRowRanges(count: count, width: available)
+            let columns = NotchLayout.railCapacity(width: available, itemWidth: style.cardWidth, spacing: style.horizontalSpacing)
+            return NotchLayout.systemRowRanges(count: count, columns: columns)
         case .twoColumns, .threeColumns:
             // Manual columns retain readable cards on unusually narrow islands.
-            let capacity = NotchLayout.railCapacity(width: available, itemWidth: 100, spacing: NotchLayout.rowSpacing)
+            let capacity = NotchLayout.railCapacity(width: available, itemWidth: 100 * style.scale, spacing: style.horizontalSpacing)
             let columns = min(self == .twoColumns ? 2 : 3, capacity)
             return stride(from: 0, to: max(0, count), by: columns).map { $0..<min(count, $0 + columns) }
         }
