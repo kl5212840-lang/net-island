@@ -1818,6 +1818,17 @@ final class NotchHostingView: NSHostingView<AnyView> {
             if scroll.hasVerticalScroller { scroll.hasVerticalScroller = false }
             if scroll.hasHorizontalScroller { scroll.hasHorizontalScroller = false }
             if retile { scroll.tile() }
+            if let marker = scroll.identifier?.rawValue, marker.hasPrefix("notch.controls.canvas:"),
+               let target = Double(marker.dropFirst("notch.controls.canvas:".count)), target.isFinite, target > 0 {
+                let surplus = scroll.frame.width - CGFloat(target)
+                if abs(surplus) > 0.5 && abs(surplus) <= 24 {
+                    var frame = scroll.frame
+                    frame.origin.x = 0
+                    frame.size.width = CGFloat(target)
+                    scroll.frame = frame
+                    scroll.tile()
+                }
+            }
         }
         for child in view.subviews { suppressScrollers(in: child) }
     }

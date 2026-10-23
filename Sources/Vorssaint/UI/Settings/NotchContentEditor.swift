@@ -39,7 +39,7 @@ struct NotchIslandPreview: View {
     var body: some View {
         previewSurface
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: module)
-            .accessibilityElement(children: .ignore)
+            .accessibilityElement(children: module == .controls ? .contain : .ignore)
             .accessibilityLabel(editor.preview)
             .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
             .onAppear { monitor(windowVisible && module == .system) }
@@ -75,7 +75,17 @@ struct NotchIslandPreview: View {
     }
 
     private var caption: some View {
+        HStack {
         Label(hidden ? editor.hiddenInIsland : editor.preview, systemImage: hidden ? "eye.slash" : "eye")
+            Spacer(minLength: 8)
+            if module == .controls, !hidden {
+                Button(action: notch.beginControlsEditing) {
+                    Label(NotchNetworkStrings(l10n.language).chinese ? "编辑布局" : "Edit layout", systemImage: "pencil")
+                }.buttonStyle(.borderless).foregroundStyle(Color.accentColor)
+                    .disabled(!NotchSupport.isEnabled())
+                    .accessibilityIdentifier("notch.controls.preview.edit")
+            }
+        }
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)

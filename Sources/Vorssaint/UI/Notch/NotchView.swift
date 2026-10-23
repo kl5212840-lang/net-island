@@ -6,13 +6,14 @@ import SwiftUI
 
 struct NotchView: View {
     @ObservedObject var service: NotchService
+    @ObservedObject private var controlsEditor = NotchControlsEditor.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @AppStorage(NotchPageAppearance.storageKey) private var appearanceData = Data()
-    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
+    private var appearance: NotchPageAppearance { controlsEditor.draft?.appearance ?? .init(data: appearanceData) }
     private var navigationStyle: NotchNavigationStyle { appearance.navigation(module: service.selected.rawValue, fallback: navigationPosition) }
     @AppStorage(DefaultsKey.notchNavigationPosition) private var navigationPosition = "top"
     @AppStorage(DefaultsKey.notchHeaderLayout) private var headerLayoutData = Data()
@@ -23,6 +24,10 @@ struct NotchView: View {
 
     var body: some View {
         surface
+            .onChange(of: service.expanded) { _, open in if !open { service.finishControlsEditing(save: false) } }
+            .onChange(of: service.selected) { _, module in if module != .controls { service.finishControlsEditing(save: false) } }
+            .onChange(of: service.showingSections) { _, showing in if showing { service.finishControlsEditing(save: false) } }
+            .onChange(of: service.showingAppPanel) { _, showing in if showing { service.finishControlsEditing(save: false) } }
             // An activity arriving over the resting companion fades in as the
             // companion fades out, and one ending fades back into it, instead
             // of cutting from one to the other in a frame. A song leaving has its
@@ -275,9 +280,9 @@ struct NotchView: View {
 
     private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
     private var showsSectionArrows: Bool {
-        service.modules.count > 1 && !service.showingSections && !showsDetail && !service.showingCommandBar
+        service.modules.count > 1 && !controlsEditor.isEditing && !service.showingSections && !showsDetail && !service.showingCommandBar
     }
-    private var navigationContentInset: CGFloat { showsSectionArrows ? 16 + navigationStyle.margin : 0 }
+    private var navigationContentInset: CGFloat { showsSectionArrows || (controlsEditor.isEditing && service.modules.count > 1) ? 16 + navigationStyle.margin : 0 }
     private var contentViewportSize: CGSize {
         CGSize(width: max(0, service.contentSize.width - navigationContentInset * 2), height: service.contentSize.height)
     }
@@ -313,6 +318,8 @@ struct NotchView: View {
             .overlayPreferenceValue(NotchBandKey.self, alignment: .top) { items in
                 if geometry.headerRowHeight > 0 {
                     bandRow(items, band: band, wraps: wraps)
+                        .allowsHitTesting(!controlsEditor.isEditing)
+                        .opacity(controlsEditor.isEditing ? 0.4 : 1)
                 } else if let feedback = headerFeedback {
                     // With no row, the reading covers the page's top corner on
                     // the side a row would give it, for the moment it shows.
@@ -540,6 +547,11 @@ struct NotchView: View {
     /// The island's own actions, on a secondary click anywhere a page has no
     /// menu of its own. The floating buttons and the keys reach them too.
     @ViewBuilder private var islandMenu: some View {
+        if service.selected == .controls, service.expanded, !controlsEditor.isEditing {
+            Button(action: service.beginControlsEditing) {
+                Label(NotchNetworkStrings(l10n.language).chinese ? "编辑控制布局" : "Edit control layout", systemImage: "pencil")
+            }
+        }
         if !service.modules.isEmpty {
             Button(action: service.toggleSections) {
                 Label(service.showingSections ? l10n.s.obBack : text.sectionsTitle, systemImage: "square.grid.2x2")
@@ -573,6 +585,7 @@ struct NotchView: View {
     /// or the display leaves less room. The outer silhouette stays unchanged.
     private var pageSize: CGSize {
         var size = contentViewportSize
+        if NotchControlsEditor.shared.isEditing { return size }
         guard !showsDetail else { return size }
         switch service.selected {
         case .controls:
@@ -619,6 +632,7 @@ struct NotchView: View {
     private var contentOverflows: Bool { pageSize.height > service.contentSize.height }
 
     private var scrollsVertically: Bool {
+        if controlsEditor.isEditing { return false }
         guard !service.showingAppPanel else { return false }
         return contentOverflows || service.selectedMetric != nil
             || (service.selected == .captures && service.captureContent != nil)

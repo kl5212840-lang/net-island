@@ -107,6 +107,7 @@ struct NotchSettings: View {
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?
     @State private var draggingControl: NotchControlItem?
+    @State private var controlsVisibilityExpanded = false
     @State private var preferredPlayers: [NotchPreferredPlayer.Choice]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -403,45 +404,50 @@ struct NotchSettings: View {
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
         case .controls:
-            if NotchPageAppearance(data: pageAppearanceData).controlsCustom {
-                Text(editorControlOrderTitle).font(.subheadline.weight(.medium))
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
-                    ForEach(orderedAllControls) { item in
-                        PanelReorderableItem(item: item,
-                            order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
-                            dragging: $draggingControl) {
-                            toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
-                                reason: controlReason(item), reservesReason: !orderedAllControls.allSatisfy { $0.isAvailable() },
-                                unavailableAction: controlUnavailableAction(item))
+            DisclosureGroup(isExpanded: $controlsVisibilityExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if NotchPageAppearance(data: pageAppearanceData).controlsCustom {
+                        Text(editorControlOrderTitle).font(.subheadline.weight(.medium))
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
+                            ForEach(orderedAllControls) { item in
+                                PanelReorderableItem(item: item,
+                                order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
+                                dragging: $draggingControl) {
+                                    toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
+                                    reason: controlReason(item), reservesReason: !orderedAllControls.allSatisfy { $0.isAvailable() },
+                                    unavailableAction: controlUnavailableAction(item))
+                                }
+                            }
+                        }
+                    } else {
+                        let primary = orderedAllControls.filter { $0.isLevel || $0 == .music }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
+                            ForEach(primary) { item in
+                                PanelReorderableItem(item: item,
+                                order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
+                                dragging: $draggingControl) {
+                                    toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
+                                    reason: controlReason(item), reservesReason: !primary.allSatisfy { $0.isAvailable() },
+                                    unavailableAction: controlUnavailableAction(item))
+                                }
+                            }
+                        }
+                        Text(text.controlShortcuts).font(.subheadline.weight(.medium))
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
+                            ForEach(orderedShortcuts) { item in
+                                PanelReorderableItem(item: item,
+                                order: Binding(get: { orderedShortcuts }, set: { controlOrder = (orderedAllControls.filter { $0.isLevel || $0 == .music } + $0).map(\.rawValue).joined(separator: ",") }),
+                                dragging: $draggingControl) {
+                                    toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
+                                    reason: controlReason(item), reservesReason: !orderedShortcuts.allSatisfy { $0.isAvailable() },
+                                    unavailableAction: controlUnavailableAction(item))
+                                }
+                            }
                         }
                     }
                 }
-            } else {
-            let primary = orderedAllControls.filter { $0.isLevel || $0 == .music }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
-                ForEach(primary) { item in
-                    PanelReorderableItem(item: item,
-                        order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
-                        dragging: $draggingControl) {
-                    toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
-                               reason: controlReason(item), reservesReason: !primary.allSatisfy { $0.isAvailable() },
-                               unavailableAction: controlUnavailableAction(item))
-                    }
-                }
-            }
-            Text(text.controlShortcuts).font(.subheadline.weight(.medium))
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
-                ForEach(orderedShortcuts) { item in
-                    PanelReorderableItem(item: item,
-                        order: Binding(get: { orderedShortcuts }, set: { controlOrder = (orderedAllControls.filter { $0.isLevel || $0 == .music } + $0).map(\.rawValue).joined(separator: ",") }),
-                        dragging: $draggingControl) {
-                        toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
-                                   reason: controlReason(item), reservesReason: !orderedShortcuts.allSatisfy { $0.isAvailable() },
-                                   unavailableAction: controlUnavailableAction(item))
-                    }
-                }
-            }
-            }
+            } label: { Text(editorControlOrderTitle) }
+                .disclosureGroupStyle(SettingsDisclosureStyle())
             Divider()
             let activities = FeatureStrings.notchActivities(l10n.language)
             SettingsFeatureSwitchRow(symbol: NotchControlItem.keepAwake.symbol, title: activities.keepAwakeActivity,

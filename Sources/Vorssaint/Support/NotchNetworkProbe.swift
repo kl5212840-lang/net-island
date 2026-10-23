@@ -61,6 +61,53 @@ enum NotchNetworkProbe {
         do { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true) }
         catch { print("NETWORK ISLAND FAILED: \(error)"); exit(1) }
 
+        if arguments.contains("--direct-controls-only") {
+            var header = NotchHeaderConfiguration()
+            header.set(.networkReadout, at: .leftOuter); header.set(.control(.microphone), at: .leftMiddle)
+            header.set(.settings, at: .rightOuter); header.set(.pin, at: .rightMiddle)
+            overrides[DefaultsKey.notchHeaderLayout] = header.encoded
+            overrides[DefaultsKey.notchHeaderNetworkIconOnly] = true
+            overrides[DefaultsKey.notchQuickAccessLayout] = NotchQuickAccessConfiguration(buttons: []).encoded
+            overrides[DefaultsKey.brightnessControlEnabled] = true
+            let shown: [NotchControlItem] = [.brightness, .keyboardLight, .keepAwake, .microphone]
+            overrides[DefaultsKey.notchControlOrder] = shown.map(\.rawValue).joined(separator: ",")
+            overrides[DefaultsKey.notchHiddenControls] = NotchControlItem.allCases.filter { !shown.contains($0) }.map(\.rawValue).joined(separator: ",")
+            overrides[DefaultsKey.notchHiddenModules] = ""
+            var custom = NotchPageAppearance(values: ["controls.custom": "true", "controls.values": "true",
+                "controls.item.brightness.span": "3", "controls.item.brightness.width": "75", "controls.item.brightness.icon": "20",
+                "controls.item.keyboardLight.span": "3", "controls.item.keyboardLight.width": "75", "controls.item.keyboardLight.icon": "12"])
+            var arranged = NotchControlsDocument(appearance: custom, order: shown, hidden: [])
+            arranged.tidy(available: Set(shown))
+            custom = arranged.appearance
+            let editor = NotchControlsEditor.shared
+            for width: CGFloat in [360, 600] {
+                for variant in ["original", "aligned", "editing", "empty"] {
+                    editor.stop()
+                    overrides[NotchPageAppearance.storageKey] = (variant == "original" ? NotchPageAppearance() : custom).encoded
+                    UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+                    let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180,
+                        layout: .custom, customWidth: Double(width), customHeight: 380)
+                    NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .controls)
+                    if variant == "editing" || variant == "empty" {
+                        var document = NotchControlsDocument.stored()
+                        if variant == "empty" { document.hidden = Set(NotchControlItem.allCases.map(\.rawValue)) }
+                        editor.start(document, available: Set(shown))
+                    }
+                    let size = NotchService.shared.surfaceSize
+                    capture(AnyView(NotchView(service: .shared).background(.black)), size: size,
+                        name: "direct-\(variant)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+                }
+            }
+            editor.stop()
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchPageAppearanceSettings(module: .controls).padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 620),
+                    name: "direct-settings-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
+            print(failures.isEmpty ? "DIRECT CONTROLS OK" : "DIRECT CONTROLS FAILED: " + failures.joined(separator: "; "))
+            exit(failures.isEmpty ? 0 : 1)
+        }
+
         let monitor = SystemMonitor.shared
         monitor.setInterval(seconds: 1)
         monitor.setNotchDetailNeeds(.init(network: true))
@@ -454,7 +501,7 @@ enum NotchNetworkProbe {
                    scroll.scrollerStyle != .overlay || abs(scroll.contentView.frame.width - scroll.bounds.width) > 1 {
                     failures.append("\(name) retains an asymmetric native scrollbar gutter")
                 }
-                if let scroll = view as? NSScrollView, name.contains("system") || name.hasPrefix("arrows-"),
+                if let scroll = view as? NSScrollView, name.contains("system") || name.hasPrefix("arrows-") || name.hasPrefix("direct-editing"),
                    let document = scroll.documentView, abs(document.frame.width - scroll.contentView.bounds.width) > 1 {
                     failures.append("\(name) retains a narrower System document: \(document.frame.width) / \(scroll.contentView.bounds.width)")
                 }

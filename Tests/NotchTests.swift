@@ -9,6 +9,7 @@ import SwiftUI
 enum NotchTests {
     private static func pageAppearanceContracts(_ suite: TestSuite) {
         controlGridContracts(suite)
+        controlsEditingContracts(suite)
         let narrow = NotchNetworkStyle(fontSize: 9, wingWidth: 24, fullUnits: true)
         let short = narrow.requiredWidth(download: 15 * 1024, upload: 1000, inBits: false)
         let long = narrow.requiredWidth(download: 999 * 1024 * 1024, upload: 999, inBits: false)
@@ -141,6 +142,95 @@ enum NotchTests {
         let reloaded = NotchPagePresetLibrary(data: fullLibrary.encoded!)
         suite.expect(reloaded.readable && reloaded.items.count == 30 && reloaded.items[0].appearance == complete,
             "thirty complete per-control presets remain readable beyond the old small library cap")
+    }
+
+    private static func controlsEditingContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.controls-direct-editor"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let shown: Set<NotchControlItem> = [.brightness, .keyboardLight, .keepAwake, .microphone]
+        let original = NotchPageAppearance(values: ["tools.columns": "5", "controls.values": "true"])
+        defaults.set(original.encoded, forKey: NotchPageAppearance.storageKey)
+        defaults.set("brightness,keyboardLight,keepAwake,microphone", forKey: DefaultsKey.notchControlOrder)
+        defaults.set("music", forKey: DefaultsKey.notchHiddenControls)
+        defaults.set(Data([1, 3, 5]), forKey: DefaultsKey.notchNetworkPresets)
+        let before = defaults.dictionaryRepresentation()
+        let editor = NotchControlsEditor()
+        let stored = NotchControlsDocument.stored(in: defaults)
+        editor.start(stored, available: shown)
+        suite.expect(editor.isEditing && editor.draft!.appearance.controlsCustom && !stored.appearance.controlsCustom,
+            "direct editing creates a custom draft without altering the original grouped layout")
+        let initial = editor.draft!
+        let slots = initial.appearance.controlSlots(editor.items, width: 544)
+        suite.expect(slots[0].frame.width == slots[1].frame.width && slots[0].frame.minX == slots[1].frame.minX,
+            "auto arrange gives adjacent sliders exactly matching edges")
+        var dropped = initial
+        let last = slots.last!
+        dropped.drop(.brightness, center: CGPoint(x: last.frame.midX, y: last.frame.maxY - 1), width: 544, available: shown)
+        suite.expect(dropped.order.firstIndex(of: .brightness)! > dropped.order.firstIndex(of: last.item)!,
+            "dropping below another row’s midpoint inserts after that row even when the pointer is left of center")
+        let shortcutSlots = slots.filter { !$0.item.isLevel }
+        suite.expect(abs(shortcutSlots.first!.frame.minX + shortcutSlots.last!.frame.maxX - 544) < 0.01,
+            "Arrange centers the complete two-shortcut row with equal outside margins")
+        editor.selection = .keyboardLight
+        editor.move(.keyboardLight, backwards: true)
+        suite.expect(editor.items.first == .keyboardLight, "keyboard reordering skips hidden and unavailable controls")
+        editor.undo()
+        let beforeKeyboardResize = editor.draft!
+        editor.resizeSelected(width: 544, dx: 0, dy: 12)
+        suite.expect(editor.draft!.appearance.controlStyle(.keyboardLight).height > beforeKeyboardResize.appearance.controlStyle(.keyboardLight).height,
+            "keyboard and accessible resize adjust the selected control in the same draft")
+        editor.undo()
+        suite.expect(editor.draft == initial, "keyboard resize and reorder use the same Undo transaction")
+        let first = slots[0]
+        editor.beginGesture()
+        for amount: CGFloat in [8, 24, 50] {
+            editor.updateGesture { $0.resize(first.item, from: first.frame, translation: CGSize(width: -amount, height: amount), width: 544) }
+        }
+        editor.endGesture()
+        let changed = editor.draft!
+        suite.expect(changed != initial && editor.canUndo, "resizing produces one reversible draft change")
+        editor.undo()
+        suite.expect(editor.draft == initial && !editor.canUndo && editor.canRedo, "one undo reverses an entire continuous resize")
+        editor.redo()
+        suite.expect(editor.draft == changed, "redo restores the resized control")
+        editor.stop()
+        suite.expect(!editor.isEditing && NSDictionary(dictionary: before).isEqual(to: defaults.dictionaryRepresentation()),
+            "cancel leaves every stored setting and preset byte untouched")
+        editor.start(stored, available: shown)
+        editor.change { $0.appearance.values["controls.item.brightness.values"] = "false" }
+        suite.expect(!editor.draft!.appearance.controlStyle(.brightness).showsValues
+            && editor.draft!.appearance.controlStyle(.keyboardLight).showsValues,
+            "a selected slider can hide its readings without changing another slider")
+        var concurrent = original; concurrent.values["system.font"] = "1.2"
+        defaults.set(concurrent.encoded, forKey: NotchPageAppearance.storageKey)
+        editor.draft!.save(in: defaults)
+        let saved = NotchPageAppearance.stored(in: defaults)
+        suite.expect(saved.controlsCustom && saved.values["system.font"] == "1.2" && saved.values["tools.columns"] == "5"
+            && defaults.data(forKey: DefaultsKey.notchNetworkPresets) == Data([1, 3, 5]),
+            "Done merges only control settings and preserves concurrent section changes and named presets")
+        editor.stop()
+        for width: CGFloat in [160, 224, 360, 544, 720] {
+            for item in shown {
+                for delta: CGFloat in [-500, -50, 50, 500] {
+                    var draft = initial
+                    let rect = draft.appearance.controlContentRect(draft.appearance.controlSlots(Array(shown), width: width).first { $0.item == item }!)
+                    draft.resize(item, from: rect, translation: CGSize(width: delta, height: delta), width: width)
+                    draft.drop(item, center: CGPoint(x: delta, y: delta), width: width, available: shown)
+                    let packed = draft.appearance.controlSlots(draft.visible(available: shown), width: width)
+                    var safe = Set(packed.map(\.item)) == shown
+                    for (index, slot) in packed.enumerated() {
+                        let content = draft.appearance.controlContentRect(slot)
+                        safe = safe && slot.frame.minX >= 0 && slot.frame.maxX <= width + 0.01
+                            && content.minX >= slot.frame.minX && content.maxX <= slot.frame.maxX + 0.01
+                            && content.height >= draft.appearance.controlStyle(slot.item).minimumHeight
+                            && !packed.dropFirst(index + 1).contains { $0.frame.intersects(slot.frame) }
+                    }
+                    suite.expect(safe, "drag and resize remain packed, reachable and safe at every supported width")
+                }
+            }
+        }
     }
 
     private static func systemCustomizationContracts(_ suite: TestSuite) {

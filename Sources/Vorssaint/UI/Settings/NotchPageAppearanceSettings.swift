@@ -10,11 +10,13 @@ struct NotchPageAppearanceSettings: View {
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
     @State private var toolsListExpanded = false
     @State private var controlDetailsExpanded = false
+    @State private var controlsAdvancedExpanded = false
     @State private var editingControl: NotchControlItem = .brightness
     @State private var dragging: QuickLauncherItem?
     init(module: NotchModule, expandControls: Bool = false, control: NotchControlItem = .brightness) {
         self.module = module
         _controlDetailsExpanded = State(initialValue: expandControls)
+        _controlsAdvancedExpanded = State(initialValue: expandControls)
         _editingControl = State(initialValue: control)
     }
     private var chinese: Bool { NotchNetworkStrings(l10n.language).chinese }
@@ -30,17 +32,18 @@ struct NotchPageAppearanceSettings: View {
         var next = NotchPageAppearance(data: data); next.values[key] = value; data = next.encoded
     }
     var body: some View {
-        SettingsCard(title: module.title(l10n.language) + t("外观与布局", " appearance and layout")) {
+        SettingsCard(title: module == .controls ? t("控制布局", "Controls layout") : module.title(l10n.language) + t("外观与布局", " appearance and layout")) {
             VStack(alignment: .leading, spacing: 14) {
                 if module == .tools { tools }
                 if module == .controls { controls }
                 if module == .system { system }
-                Divider()
+                if module != .controls { Divider()
                 Button(t("恢复此分区外观默认值", "Restore this section’s appearance defaults")) {
                     var next = appearance; next.reset(module.rawValue + "."); data = next.encoded
                 }
                 Text(t("调整仅作用于岛内，立即生效。", "Changes apply immediately to the island only."))
                     .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .onChange(of: data) { _, _ in NotchService.shared.syncWithPreferences(); launcher.objectWillChange.send() }
@@ -110,11 +113,34 @@ struct NotchPageAppearanceSettings: View {
             .accessibilityLabel(t(up ? "上移" : "下移", up ? "Move up" : "Move down") + " " + item.islandTitle(l10n))
     }
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: NotchService.shared.beginControlsEditing) {
+                Label(t("在岛内编辑布局", "Edit directly in the island"), systemImage: "hand.draw")
+                    .font(.callout.weight(.semibold))
+            }
+            .buttonStyle(.borderless).foregroundStyle(Color.accentColor)
+            .disabled(!NotchSupport.isEnabled() || !NotchSupport.modules().contains(.controls))
+            .accessibilityIdentifier("notch.controls.edit.open")
+            Text(t("拖动排列，拖右下角调整大小。点选控件调外观；支持撤销，点“完成”保存。", "Drag to arrange and resize from the corner. Select a control to adjust its appearance. Undo is available; Done saves."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Picker(t("布局方式", "Layout mode"), selection: flag("controls.custom")) {
                 Text(t("原版分组", "Original groups")).tag(false)
-                Text(t("自定义网格", "Custom grid")).tag(true)
+                Text(t("自定义布局", "Custom layout")).tag(true)
             }
+            DisclosureGroup(isExpanded: $controlsAdvancedExpanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    legacyControls
+                    Divider()
+                    Button(t("恢复控制布局默认值", "Restore control layout defaults")) {
+                        var next = appearance; next.reset("controls."); data = next.encoded
+                    }
+                }
+            } label: { Text(t("高级数值参数", "Advanced numeric settings")) }
+                .disclosureGroupStyle(SettingsDisclosureStyle())
+        }
+    }
+    private var legacyControls: some View {
+        VStack(alignment: .leading, spacing: 14) {
             if appearance.controlsCustom {
                 customControls
             } else {

@@ -305,6 +305,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchPageAppearance.swift
+        Sources/Vorssaint/Services/Notch/NotchControlsEditing.swift
         Sources/Vorssaint/Services/Notch/NotchNetworkPresets.swift
         Sources/Vorssaint/Services/Notch/NotchHeaderConfiguration.swift
         Sources/Vorssaint/Services/Notch/NotchSystemConfiguration.swift

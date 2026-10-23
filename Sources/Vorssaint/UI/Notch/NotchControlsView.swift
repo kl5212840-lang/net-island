@@ -13,11 +13,14 @@ struct NotchControlsView: View {
     @AppStorage(DefaultsKey.notchHeaderLayout) private var headerData = Data()
     @ObservedObject private var brightness = BrightnessService.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
-    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
+    @ObservedObject private var editor = NotchControlsEditor.shared
+    private var appearance: NotchPageAppearance { editor.draft?.appearance ?? .init(data: appearanceData) }
+    private var items: [NotchControlItem] { editor.isEditing ? editor.items : NotchSupport.controls() }
     @Environment(\.notchBand) private var band
+    @Environment(\.notchSettingsPreview) private var preview
 
     var body: some View {
-        let items = NotchSupport.controls()
+        let items = self.items
         let levels = items.filter(\.isLevel)
         // Levels default to the body. The optional original header mode is
         // used only when no custom shortcut needs either camera wing.
@@ -31,7 +34,11 @@ struct NotchControlsView: View {
             if !belowLevels.isEmpty { result.levelRow = appearance.controlsHeight(levels: belowLevels.count) }
             return result
         }()
-        if items.isEmpty {
+        if editor.isEditing && !preview {
+            NotchControlsEditingView(service: service, size: size) { item, style, width in
+                AnyView(control(item, style: style, width: width))
+            }
+        } else if items.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
         } else if appearance.controlsCustom {
             customGrid(items)
@@ -79,29 +86,37 @@ struct NotchControlsView: View {
                 let style = appearance.controlStyle(slot.item)
                 let contentWidth = appearance.controlContentWidth(slot.item, slotWidth: slot.frame.width)
                 let alignment: Alignment = style.alignment == "left" ? .leading : style.alignment == "right" ? .trailing : .center
-                Group {
-                    if slot.item == .music {
-                        NotchMusicControlsView(notch: service, height: slot.frame.height,
-                            artworkSize: max(40, min(120, contentWidth - 168)))
-                    } else if slot.item.isLevel {
-                        VStack(alignment: .leading, spacing: 4) {
-                            if appearance.controlsValues {
-                                HStack { Text(slot.item.title(l10n)); Spacer(); Text(reading(slot.item)).monospacedDigit() }
-                                    .font(.system(size: style.font)).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            level(slot.item)
-                        }
-                    } else {
-                        shortcut(slot.item)
-                    }
-                }
-                .environment(\.notchControlSizing, style)
-                .frame(width: contentWidth, height: slot.frame.height)
+                control(slot.item, style: style, width: contentWidth)
                 .frame(width: slot.frame.width, height: slot.frame.height, alignment: alignment)
                 .offset(x: slot.frame.minX, y: slot.frame.minY)
             }
         }
         .frame(width: size.width, height: appearance.customControlsHeight(items, width: size.width), alignment: .topLeading)
+    }
+
+    private func control(_ item: NotchControlItem, style: NotchControlSizing, width: CGFloat) -> some View {
+        var resolved = style
+        resolved.glyphColumn = items.filter(\.isLevel).map { max(18, appearance.controlStyle($0).glyph + 6) }.max() ?? 18
+        return ZStack {
+            if item == .music {
+                NotchMusicControlsView(notch: service, height: style.height, artworkSize: max(40, min(120, width - 168)))
+            } else if item.isLevel {
+                VStack(alignment: .leading, spacing: 4) {
+                    if style.showsValues {
+                        HStack {
+                            Text(item.title(l10n)).lineLimit(1).minimumScaleFactor(0.8)
+                            Spacer(minLength: 6)
+                            Text(reading(item)).monospacedDigit()
+                        }
+                        .font(.system(size: style.font)).foregroundStyle(.secondary)
+                        .frame(width: width)
+                    }
+                    level(item).frame(width: width)
+                }.frame(width: width)
+            } else { shortcut(item) }
+        }
+        .environment(\.notchControlSizing, resolved)
+        .frame(width: width, height: style.height)
     }
 
     private func reading(_ item: NotchControlItem) -> String {
@@ -168,7 +183,7 @@ private struct NotchBrightnessSetup: View {
             }
         }.buttonStyle(.plain).foregroundStyle(.secondary).font(.system(size: sizing?.font ?? 11))
         let sun = Image(systemName: "sun.max.fill").font(.system(size: sizing?.glyph ?? 12, weight: .medium))
-            .frame(width: max(18, (sizing?.glyph ?? 12) + 6))
+            .frame(width: sizing?.glyphColumn ?? max(18, (sizing?.glyph ?? 12) + 6))
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 sun
@@ -249,7 +264,7 @@ struct NotchAudioControls: View {
                 .foregroundStyle(mixer.systemOutputMuted == true ? Color.red : Color.white)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: mixer.systemOutputMuted)
-                .frame(width: max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
+                .frame(width: sizing?.glyphColumn ?? max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))
@@ -369,6 +384,8 @@ private struct NotchBrightnessControls: View {
                 NotchLevelChooser(title: FeatureStrings.notch(l10n.language).brightness,
                                   items: displayItems(current: display))
                     .accessibilityValue(display.name)
+            } else if sizing != nil {
+                Color.clear.frame(width: 16, height: 24).accessibilityHidden(true)
             }
         }
         .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
@@ -380,7 +397,7 @@ private struct NotchBrightnessControls: View {
     /// so both sliders start on the same line.
     private var glyph: some View {
         Image(systemName: "sun.max.fill").font(.system(size: sizing?.glyph ?? 12, weight: .medium))
-            .frame(width: max(18, (sizing?.glyph ?? 12) + 6))
+            .frame(width: sizing?.glyphColumn ?? max(18, (sizing?.glyph ?? 12) + 6))
     }
 
     private func displayItems(current: BrightnessDisplay) -> [NotchMenuItem] {
@@ -418,6 +435,7 @@ private struct NotchKeyboardLightControls: View {
         HStack(spacing: 6) {
             glyph
             slider
+            if sizing != nil { Color.clear.frame(width: 16, height: 24).accessibilityHidden(true) }
         }
         .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
         .help(title)
@@ -436,7 +454,7 @@ private struct NotchKeyboardLightControls: View {
                 .font(.system(size: sizing?.glyph ?? 12, weight: .medium))
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: service.keyboardLightEnabled)
-                .frame(width: max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
+                .frame(width: sizing?.glyphColumn ?? max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))

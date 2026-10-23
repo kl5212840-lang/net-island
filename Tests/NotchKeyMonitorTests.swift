@@ -86,6 +86,11 @@ enum NotchKeyMonitorTests {
             result.requiresFullWidthHeader = fullWidthRow
             return result
         }
+        var contentSize: CGSize { CGSize(width: 544, height: 340) }
+        func finishControlsEditing(save: Bool) {
+            NotchKeyMonitorTests.actions.append(save ? "saveControls" : "cancelControls")
+            NotchControlsEditor.shared.stop()
+        }
         func collapse() { NotchKeyMonitorTests.actions.append("collapse") }
         func openSettings() { NotchKeyMonitorTests.actions.append("settings") }
         func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
@@ -194,5 +199,46 @@ enum NotchKeyMonitorTests {
         let drawn = service.expandedGeometry.toolFlow(count: 12)
         suite.expect(launcher.flows == [drawn] && drawn != service.geometry.toolFlow(count: 12),
                      "the Tools arrows follow the rail below a top row under the camera")
+        let editor = NotchControlsEditor.shared
+        defer { editor.stop() }
+        let document = NotchControlsDocument(appearance: .init(), order: [.brightness, .keyboardLight], hidden: [])
+        editor.start(document, available: [.brightness, .keyboardLight])
+        actions = []
+        let foreignTab = NSEvent(window: Panel(), keyCode: 48)
+        suite.expect(NSEvent.handler?(foreignTab) != nil && editor.selection == .brightness,
+            "editing never takes keyboard navigation from a different window")
+        editor.keyboardFocus = .control(.brightness)
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 48)) == nil
+            && editor.keyboardFocus == .control(.keyboardLight),
+            "editing Tab advances the complete toolbar, canvas and inspector focus order")
+        suite.expect(editor.focusOrder.contains(.add) && editor.focusOrder.contains(.arrange)
+            && editor.focusOrder.contains(.appearance) && editor.focusOrder.contains(.textIncrease)
+            && !editor.focusOrder.contains(.undo), "editor focus order includes menus and inspector and skips disabled Undo")
+        let menuToken = NSObject()
+        editor.beginPopup(menuToken)
+        suite.expect(NSEvent.handler?(escape) != nil && editor.isEditing && actions.isEmpty,
+            "an open native popup keeps Escape instead of cancelling the layout transaction")
+        editor.endPopup(menuToken)
+        editor.selection = .keyboardLight
+        editor.canvasHasFocus = true
+        _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 126))
+        suite.expect(editor.items.first == .keyboardLight && actions.isEmpty,
+            "editing arrow reorders the draft instead of switching section or activating Tools")
+        let previous = editor.draft!
+        _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 125, modifierFlags: .option))
+        suite.expect(editor.draft!.appearance.controlStyle(.keyboardLight).height > previous.appearance.controlStyle(.keyboardLight).height,
+            "editing Option-arrow resizes the selected item through the real event monitor")
+        _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 6, modifierFlags: .command, charactersIgnoringModifiers: "z"))
+        suite.expect(editor.draft == previous, "editing Command-Z reverses a keyboard resize")
+        _ = NSEvent.handler?(escape)
+        suite.expect(!editor.isEditing && actions == ["cancelControls"], "editing Escape cancels without closing or saving the page")
+        editor.start(document, available: [.brightness, .keyboardLight])
+        editor.canvasHasFocus = false
+        actions = []
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 125)) != nil && actions.isEmpty,
+            "editing arrows belong to the native menu or inspector when the canvas is unfocused")
+        editor.canvasHasFocus = true
+        _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 36))
+        suite.expect(!editor.isEditing && actions == ["saveControls"], "editing Return requests Done through the real event monitor")
     }
 }

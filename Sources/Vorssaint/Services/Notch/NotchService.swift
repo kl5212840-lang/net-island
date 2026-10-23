@@ -222,6 +222,7 @@ final class NotchService: ObservableObject {
     /// The home page's controls as the preferences last saved them, read with
     /// the preferences: the open page's geometry is read on every layout pass.
     private var homeControls: [NotchControlItem] = []
+    private var controlsEditorWasPinned = false
     private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
@@ -892,10 +893,11 @@ final class NotchService: ObservableObject {
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
                           detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
                           capturePreviewHeight: CGFloat?) -> CGSize {
-        let controls = NotchSupport.controls()
+        let editor = NotchControlsEditor.shared
+        let controls = module == .controls && editor.isEditing ? editor.items : NotchSupport.controls()
         let sliders = controls.filter(\.isLevel).count
         let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
-        return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
+        var size = geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
                                      shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      controlItems: controls,
@@ -908,6 +910,10 @@ final class NotchService: ObservableObject {
                                         ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode(),
                                      agentsHeight: module == .agents && !detail && !panel
                                         ? agentsContentHeight(width: geometry.contentWidth) : nil)
+        if module == .controls, editor.isEditing, !detail, !panel {
+            size.height = min(geometry.screen.height - 48, max(size.height, geometry.headerTopInset + geometry.headerChromeHeight + 340))
+        }
+        return size
     }
 
     /// The AI page is as tall as the cards it shows; nil while the logs are
@@ -937,8 +943,8 @@ final class NotchService: ObservableObject {
         // width, and lead their row with their own way back instead of the
         // sections.
         if !showingSections, !showingAppPanel, selectedMetric == nil, !modules.isEmpty {
-            result.pageContentWidth = NotchLayout.naturalContentWidth(selected, controls: homeControls,
-                                                                      within: geometry.contentWidth)
+            result.pageContentWidth = selected == .controls && result.pageAppearance.controlsCustom ? nil
+                : NotchLayout.naturalContentWidth(selected, controls: homeControls, within: geometry.contentWidth)
         } else {
             result.sectionsButtonInRow = false
         }
@@ -1952,6 +1958,32 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
+    }
+
+    func beginControlsEditing() {
+        guard NotchSupport.isEnabled(), !suspended, !NotchControlsEditor.shared.isEditing else { return }
+        let previousPin = pinned
+        open(.controls, pinned: true)
+        guard expanded, selected == .controls, !showingAppPanel, selectedMetric == nil else { return }
+        controlsEditorWasPinned = previousPin
+        let editor = NotchControlsEditor.shared
+        editor.onChange = { [weak self] in
+            guard let self, let draft = editor.draft else { return }
+            self.geometry.pageAppearance = draft.appearance
+            self.refreshPresentation(animated: false)
+        }
+        editor.start(.stored(), available: Set(NotchControlItem.allCases.filter { $0.isAvailable() }))
+    }
+
+    func finishControlsEditing(save: Bool) {
+        let editor = NotchControlsEditor.shared
+        guard editor.isEditing else { return }
+        if save { editor.draft?.save() }
+        editor.stop()
+        geometry.pageAppearance = .stored()
+        pinned = expanded ? controlsEditorWasPinned : false
+        if save { syncWithPreferences() }
+        else { refreshPresentation() }
     }
 
     func adjacentSection(forward: Bool) -> NotchModule? {
@@ -3560,7 +3592,7 @@ final class NotchService: ObservableObject {
             download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
             inBits: UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", curveInset: result.floats ? 8 : 16))
         result.systemStyle = .stored()
-        result.pageAppearance = .stored()
+        result.pageAppearance = NotchControlsEditor.shared.draft?.appearance ?? .stored()
         result.headerHasCustomButtons = !NotchHeaderConfiguration.stored().buttons.isEmpty
         result.systemLayout = .resolved(UserDefaults.standard.string(forKey: DefaultsKey.notchSystemLayout) ?? "original")
         result.systemConfiguration = .stored()
@@ -3778,6 +3810,30 @@ final class NotchService: ObservableObject {
             // Restore its visible indicator before handling any keyboard input.
             if event.type == .keyDown, event.window === self.panel, !self.showsKeyboardFocus {
                 self.showsKeyboardFocus = true
+            }
+            if event.type == .keyDown, event.window === self.panel, NotchControlsEditor.shared.isEditing {
+                let editor = NotchControlsEditor.shared
+                if editor.trackingPopup { return event }
+                let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+                if event.keyCode == 53 { self.finishControlsEditing(save: false); return nil }
+                if event.keyCode == 48, modifiers.isEmpty || modifiers == .shift {
+                    editor.cycleFocus(backwards: modifiers.contains(.shift)); return nil
+                }
+                if (event.keyCode == 36 || event.keyCode == 76), editor.canvasHasFocus { self.finishControlsEditing(save: true); return nil }
+                if modifiers == .command || modifiers == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "z" {
+                    if modifiers.contains(.shift) { editor.redo() } else { editor.undo() }
+                    return nil
+                }
+                if editor.canvasHasFocus, [123, 124, 125, 126].contains(event.keyCode), modifiers.isEmpty || modifiers == .option {
+                    if modifiers == .option {
+                        let inset = self.modules.count > 1 ? 16 + self.geometry.pageAppearance.navigation(module: "controls", fallback: "top").margin : 0
+                        editor.resizeSelected(width: max(72, self.contentSize.width - inset * 2),
+                            dx: event.keyCode == 123 ? -8 : event.keyCode == 124 ? 8 : 0,
+                            dy: event.keyCode == 126 ? -4 : event.keyCode == 125 ? 4 : 0)
+                    } else if let item = editor.selection { editor.move(item, backwards: event.keyCode == 123 || event.keyCode == 126) }
+                    return nil
+                }
+                return event
             }
             // While an input method is composing, Esc belongs to it and
             // drops the candidate; the island takes the next one.
