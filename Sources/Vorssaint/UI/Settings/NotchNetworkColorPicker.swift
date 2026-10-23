@@ -70,10 +70,12 @@ private final class CompletionColorWell: NSColorWell {
 
     override func activate(_ exclusive: Bool) {
         super.activate(exclusive)
-        let footer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 48))
-        let hint = NSTextField(labelWithString: savedHint)
+        let footer = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 80))
+        footer.autoresizingMask = [.width]
+        let hint = NSTextField(wrappingLabelWithString: savedHint)
         hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
+        hint.maximumNumberOfLines = 2
         let button = NSButton(title: doneTitle, target: self, action: #selector(finishSelection(_:)))
         button.bezelStyle = .rounded
         button.keyEquivalent = "\r"
@@ -83,14 +85,18 @@ private final class CompletionColorWell: NSColorWell {
         }
         NSLayoutConstraint.activate([
             hint.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 12),
-            hint.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
-            button.leadingAnchor.constraint(greaterThanOrEqualTo: hint.trailingAnchor, constant: 12),
+            hint.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -12),
+            hint.topAnchor.constraint(equalTo: footer.topAnchor, constant: 8),
+            hint.bottomAnchor.constraint(lessThanOrEqualTo: button.topAnchor, constant: -6),
+            button.leadingAnchor.constraint(greaterThanOrEqualTo: footer.leadingAnchor, constant: 12),
             button.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -12),
-            button.centerYAnchor.constraint(equalTo: footer.centerYAnchor)
+            button.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: -8),
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 72)
         ])
         self.footer = footer
         NSColorPanel.shared.accessoryView = footer
         NSColorPanel.shared.showsAlpha = false
+        NSColorPanel.shared.makeKeyAndOrderFront(self)
     }
 
     override func deactivate() {
