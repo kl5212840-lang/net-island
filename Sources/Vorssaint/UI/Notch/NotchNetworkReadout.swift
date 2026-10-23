@@ -100,8 +100,8 @@ struct NotchNetworkToggle: View {
                 if !isCompact { Text(customTitle.isEmpty ? text.quickTitle : customTitle).font(.system(size: 11, weight: .medium)).lineLimit(1) }
             }
             .foregroundStyle(isOn ? .white : .white.opacity(0.65))
-            .padding(.horizontal, isCompact ? 7 : 9)
-            .frame(height: 26)
+            .padding(.horizontal, isCompact ? (compact ? 5 : 7) : 9)
+            .frame(width: isCompact ? (compact ? 24 : 28) : nil, height: isCompact ? 28 : 26)
             .background(.white.opacity(isCompact ? 0 : (isOn ? 0.16 : 0.06)), in: Capsule())
             .contentShape(Capsule())
         }

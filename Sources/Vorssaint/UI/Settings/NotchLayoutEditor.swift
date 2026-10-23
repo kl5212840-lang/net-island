@@ -135,7 +135,7 @@ struct NotchLayoutEditor: View {
 
     /// Zoom the proportional preview while keeping the existing floating
     /// handles and the new top-row handles large enough to select.
-    private static let previewScale: CGFloat = 0.75
+    private static let previewScale: CGFloat = 0.8
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
     /// The width the island opens the home page at, which the preview
     /// shows: a width set by hand, so the slider moves it, or under a preset
@@ -165,7 +165,7 @@ struct NotchLayoutEditor: View {
 
     /// A narrow window shrinks the whole island rather than only its width.
     private func scale(in canvas: CGSize) -> CGFloat {
-        min(Self.previewScale, max(0.2, (canvas.width - 112) / actualWidth))
+        min(Self.previewScale, max(0.2, (canvas.width - 88) / actualWidth))
     }
 
     private func islandFrame(in canvas: CGSize) -> CGRect {

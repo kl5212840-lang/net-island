@@ -39,11 +39,15 @@ struct NotchHeaderEditor: View {
 
     private func point(_ position: NotchHeaderPosition) -> CGPoint {
         let gap = geometry.headerCameraGap * scale
+        let wing = (island.width - gap) / 2
+        let step = min(30, max(0, (wing - 40) / 2))
         let x: CGFloat = switch position {
-        case .leftOuter: island.minX + 24
-        case .leftInner: island.midX - gap / 2 - 22
-        case .rightInner: island.midX + gap / 2 + 22
-        case .rightOuter: island.maxX - 24
+        case .leftOuter: island.minX + 20
+        case .leftMiddle: island.minX + 20 + step
+        case .leftInner: island.minX + 20 + step * 2
+        case .rightInner: island.maxX - 20 - step * 2
+        case .rightMiddle: island.maxX - 20 - step
+        case .rightOuter: island.maxX - 20
         }
         return CGPoint(x: x, y: island.minY + max(18, (geometry.headerTopInset + geometry.headerRowHeight / 2) * scale))
     }
@@ -56,10 +60,11 @@ struct NotchHeaderEditor: View {
             Image(systemName: button?.action?.symbol ?? "plus")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(button == nil ? Color.accentColor : .white.opacity(hidden ? 0.4 : 0.85))
-                .frame(width: 28, height: 28)
+                .frame(width: 24, height: 28)
                 .background {
                     if button == nil {
                         Circle().strokeBorder(Color.accentColor.opacity(0.65), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .frame(width: 24, height: 24)
                     }
                 }
                 .contentShape(Rectangle())
@@ -77,7 +82,7 @@ struct NotchHeaderEditor: View {
             .onEnded { value in
                 if let button, let target = NotchHeaderPosition.allCases.first(where: {
                     let p = point($0)
-                    return abs(value.location.x - p.x) <= 20 && abs(value.location.y - p.y) <= 20
+                    return abs(value.location.x - p.x) <= 12 && abs(value.location.y - p.y) <= 20
                 }) {
                     var current = layout; current.move(button.id, to: target); data = current.encoded
                 }

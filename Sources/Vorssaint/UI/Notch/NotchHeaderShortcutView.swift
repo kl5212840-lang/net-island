@@ -22,7 +22,7 @@ struct NotchHeaderShortcutView: View {
                     Image(systemName: symbol(action))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(selected ? 1 : 0.65))
-                        .frame(width: 28, height: 28)
+                        .frame(width: compact ? 24 : 28, height: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 9, lifts: false))

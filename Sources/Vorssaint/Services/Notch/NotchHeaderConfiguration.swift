@@ -4,7 +4,7 @@
 import Foundation
 
 enum NotchHeaderPosition: String, CaseIterable, Codable {
-    case leftOuter, leftInner, rightInner, rightOuter
+    case leftOuter, leftMiddle, leftInner, rightInner, rightMiddle, rightOuter
 
     static func resolved(_ raw: String) -> Self { Self(rawValue: raw) ?? .leftOuter }
 
@@ -12,14 +12,19 @@ enum NotchHeaderPosition: String, CaseIterable, Codable {
     /// share the other wing instead of overlaying the page or the camera.
     func effective(wrapsCamera: Bool) -> Self {
         guard wrapsCamera else { return self }
-        return self == .leftOuter ? .rightOuter : self == .leftInner ? .rightInner : self
+        return self == .leftOuter ? .rightOuter : self == .leftMiddle ? .rightMiddle : self == .leftInner ? .rightInner : self
     }
+
+    var leading: Bool { self == .leftOuter || self == .leftMiddle || self == .leftInner }
+    var order: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
     func title(_ text: NotchNetworkStrings) -> String {
         switch self {
         case .leftOuter: text.headerLeftOuter
+        case .leftMiddle: text.headerLeftMiddle
         case .leftInner: text.headerLeftInner
         case .rightInner: text.headerRightInner
+        case .rightMiddle: text.headerRightMiddle
         case .rightOuter: text.headerRightOuter
         }
     }
@@ -33,7 +38,7 @@ struct NotchHeaderButton: Codable, Equatable, Identifiable {
     var action: NotchQuickAction? { .init(id: actionID) }
 }
 
-/// Four editable anchors live in the camera-safe header wings. Floating
+/// Six editable anchors live in the camera-safe header wings. Floating
 /// left/right/bottom shortcuts have their own configuration and are untouched.
 struct NotchHeaderConfiguration: Codable, Equatable {
     var buttons: [NotchHeaderButton] = []

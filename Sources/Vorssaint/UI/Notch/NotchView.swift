@@ -444,32 +444,28 @@ struct NotchView: View {
     private func leadingHeader(_ items: NotchBandItems, band: NotchBand, compact: Bool) -> some View {
         HStack(spacing: 6) {
             bandLeading(band)
-            headerShortcuts(at: .leftOuter, wraps: false, compact: compact)
+            headerShortcuts(leading: true, wraps: false, compact: compact)
             items.leading
-            Spacer(minLength: 0)
-            headerShortcuts(at: .leftInner, wraps: false, compact: compact)
         }
     }
 
     private func trailingHeader(_ items: NotchBandItems, band: NotchBand, wraps: Bool, compact: Bool) -> some View {
         HStack(spacing: 6) {
-            headerShortcuts(at: .rightInner, wraps: wraps, compact: compact)
-            if band.besideCamera { Spacer(minLength: 0) }
             items.trailing
             trailingSections(band)
             updateControl(band)
             pinMark
-            headerShortcuts(at: .rightOuter, wraps: wraps, compact: compact)
+            headerShortcuts(leading: false, wraps: wraps, compact: compact)
         }
     }
 
-    @ViewBuilder private func headerShortcuts(at position: NotchHeaderPosition, wraps: Bool, compact: Bool) -> some View {
+    @ViewBuilder private func headerShortcuts(leading: Bool, wraps: Bool, compact: Bool) -> some View {
         let configuration = NotchHeaderConfiguration.decoded(headerLayoutData) ?? .stored()
         let buttons = configuration.buttons.filter {
-            $0.position.effective(wrapsCamera: wraps) == position && $0.action?.isAvailable() == true
-        }
+            $0.position.effective(wrapsCamera: wraps).leading == leading && $0.action?.isAvailable() == true
+        }.sorted { $0.position.effective(wrapsCamera: wraps).order < $1.position.effective(wrapsCamera: wraps).order }
         if !buttons.isEmpty {
-            HStack(spacing: 6) {
+            HStack(spacing: compact ? 4 : 6) {
                 ForEach(buttons) { button in
                     NotchHeaderShortcutView(button: button, service: service, compact: compact)
                 }

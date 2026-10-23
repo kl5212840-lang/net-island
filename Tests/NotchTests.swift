@@ -154,8 +154,12 @@ enum NotchTests {
         suite.expect(NotchQuickAction(id: "networkReadout") == .networkReadout
                      && NotchQuickAction.optionalActions.contains(.networkReadout),
                      "the network switch participates in the same complete chooser as every other shortcut")
+        var six = NotchHeaderConfiguration()
+        for position in NotchHeaderPosition.allCases { six.set(.settings, at: position) }
+        suite.expect(six.sanitized().buttons.count == 6 && six.buttons.filter { $0.position.leading }.count == 3,
+                     "six independent top anchors offer three positions per wing without changing the floating layout")
         for position in NotchHeaderPosition.allCases {
-            suite.expect(position.effective(wrapsCamera: true) == (position == .leftOuter ? .rightOuter : position == .leftInner ? .rightInner : position),
+            suite.expect(position.effective(wrapsCamera: true) == (position == .leftOuter ? .rightOuter : position == .leftMiddle ? .rightMiddle : position == .leftInner ? .rightInner : position),
                          "page-owned leading headers redirect shortcuts to the safe trailing side")
         }
     }

@@ -140,8 +140,10 @@ enum NotchNetworkProbe {
             }
             var allActions = NotchHeaderConfiguration()
             allActions.set(.networkReadout, at: .leftOuter)
+            allActions.set(.module(.tools), at: .leftMiddle)
             allActions.set(.module(.system), at: .leftInner)
             allActions.set(.pin, at: .rightInner)
+            allActions.set(.control(.microphone), at: .rightMiddle)
             allActions.set(.settings, at: .rightOuter)
             overrides[DefaultsKey.notchHeaderLayout] = allActions.encoded
             UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
@@ -150,6 +152,13 @@ enum NotchNetworkProbe {
             NotchService.shared.prepareNetworkProbe(geometry: fullGeometry, expanded: true, selected: .system)
             capture(AnyView(NotchView(service: .shared).background(.black)), size: NotchService.shared.surfaceSize,
                     name: "header-all-actions-\(language)", output: output, failures: &failures, island: true)
+            overrides[DefaultsKey.notchQuickAccessLayout] = NotchQuickAccessConfiguration(buttons: []).encoded
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            let denseGeometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                              layout: .custom, customWidth: 480, customHeight: 300)
+            NotchService.shared.prepareNetworkProbe(geometry: denseGeometry, expanded: true, selected: .system)
+            capture(AnyView(NotchView(service: .shared).background(.black)), size: NotchService.shared.surfaceSize,
+                    name: "header-six-with-sections-\(language)", output: output, failures: &failures, island: true)
             overrides[DefaultsKey.notchHeaderLayout] = Data()
             overrides[DefaultsKey.notchHeaderSettingsPosition] = "rightOuter"
             overrides[DefaultsKey.notchHeaderNetworkPosition] = "leftOuter"

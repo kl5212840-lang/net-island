@@ -89,13 +89,15 @@ struct NotchNetworkStrings {
     var headerSettingsPosition: String { text("Settings icon position", "设置图标位置", "設定圖示位置") }
     var headerNetworkPosition: String { text("Network switch position", "网速开关位置", "網速開關位置") }
     var headerIconOnly: String { text("Network switch: icon only", "网速开关仅显示图标", "網速開關僅顯示圖示") }
-    var headerLeftOuter: String { text("Left · Outer edge", "左侧外端", "左側外端") }
-    var headerLeftInner: String { text("Left · Beside camera", "左侧靠刘海", "左側靠瀏海") }
-    var headerRightInner: String { text("Right · Beside camera", "右侧靠刘海", "右側靠瀏海") }
-    var headerRightOuter: String { text("Right · Outer edge", "右侧外端", "右側外端") }
+    var headerLeftOuter: String { text("Left · Slot 1", "左侧第1位", "左側第1位") }
+    var headerLeftMiddle: String { text("Left · Slot 2", "左侧第2位", "左側第2位") }
+    var headerLeftInner: String { text("Left · Slot 3", "左侧第3位", "左側第3位") }
+    var headerRightInner: String { text("Right · Slot 1", "右侧第1位", "右側第1位") }
+    var headerRightMiddle: String { text("Right · Slot 2", "右侧第2位", "右側第2位") }
+    var headerRightOuter: String { text("Right · Slot 3", "右侧第3位", "右側第3位") }
     var headerHint: String { text("Adds shortcuts inside the open island without moving its floating buttons. Camera clearance stays reserved. Crowded rows use icons first, then omit extra shortcuts. Pages with their own left header use the right side.", "在展开的岛内额外添加快捷图标，不改动原有悬浮按钮。自动预留刘海安全距离；空间不足时先简化为图标，再隐藏额外快捷项。自行布局左侧标题栏的分区会改用右侧。", "在展開的島內額外新增快捷圖示，不更動原有浮動按鈕。自動預留瀏海安全距離；空間不足時先簡化為圖示，再隱藏額外快捷項。自行配置左側標題列的分區會改用右側。") }
 
     var cameraSafeArea: String { text("Camera safe area", "刘海安全区", "瀏海安全區") }
-    var headerEditorHint: String { text("Click a top-row + to add any available action. Click an icon to rename, replace or remove it; drag between top slots to swap positions. Camera space stays reserved; floating buttons are configured separately.", "点击顶部对应位置的＋可添加任意已启用的操作；点击图标可改名、替换或移除，拖动到另一顶部位置可交换。中间预留刘海安全区，原有悬浮按钮独立配置。", "點擊頂部對應位置的＋可新增任意已啟用的操作；點擊圖示可改名、替換或移除，拖曳到另一頂部位置可交換。中間預留瀏海安全區，原有浮動按鈕獨立設定。") }
+    var headerEditorHint: String { text("Six top slots, three per side. Click + to add an action; click an icon to rename, replace or remove it. Drag between slots to swap. Filled icons pack with equal gaps; empty slots take no space. Camera clearance and floating buttons stay independent.", "顶部左右各3位。点＋添加操作，点图标改名、替换或移除，拖动可交换位置。实际图标等距紧凑排列，空位不占宽度。中间保留刘海安全区，悬浮按钮独立配置。", "頂部左右各3位。點＋新增操作，點圖示改名、替換或移除，拖曳可交換位置。實際圖示等距緊湊排列，空位不占寬度。中間保留瀏海安全區，浮動按鈕獨立設定。") }
 
 }
