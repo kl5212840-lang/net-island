@@ -5,8 +5,16 @@ import AppKit
 
 private final class TestSettingsWindow: SettingsWindow {
     var testIsKeyWindow = true
+    var activationRequests = 0
 
     override var isKeyWindow: Bool { testIsKeyWindow }
+    override func activateForKeyboardInput() { activationRequests += 1 }
+}
+
+private final class SettingsFocusClickTarget: NSView {
+    var clicked: (() -> Void)?
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { clicked?() }
 }
 
 enum SettingsWindowTests {
@@ -31,6 +39,42 @@ enum SettingsWindowTests {
                 else { defaults.removeObject(forKey: key) }
             }
         }
+
+        // Exercise the actual NSWindow handoff and mouse-dispatch path. The
+        // fixture records activation instead of taking focus from the user.
+        let originalContent = window.contentView
+        let target = SettingsFocusClickTarget(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        window.contentView = target
+        window.orderFrontRegardless()
+        let beforeKey = window.activationRequests
+        window.becomeKey()
+        expect(window.activationRequests == beforeKey + 1,
+               "making Settings key also requests application activation")
+        var activationBeforeClick: Int?
+        target.clicked = { activationBeforeClick = window.activationRequests }
+        let beforeClick = window.activationRequests
+        let click = NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 100, y: 80),
+                                      modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+                                      context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
+        window.sendEvent(click)
+        expect(activationBeforeClick == beforeClick + 1,
+               "clicking an already-key Settings window activates before dispatching to its content")
+        // Activation must not replace the editor or its marked text. New and
+        // rename fields, including Chinese composition, retain AppKit editing.
+        let field = NSTextField(frame: NSRect(x: 10, y: 10, width: 200, height: 24))
+        target.addSubview(field)
+        window.makeFirstResponder(field)
+        let editor = window.firstResponder as? NSTextView
+        editor?.insertText("Preset 123", replacementRange: NSRange(location: NSNotFound, length: 0))
+        expect(editor?.string == "Preset 123", "the Settings field editor accepts letters and digits")
+        editor?.setMarkedText("中文", selectedRange: NSRange(location: 2, length: 0),
+                              replacementRange: NSRange(location: NSNotFound, length: 0))
+        window.activateForKeyboardInput()
+        expect(window.firstResponder === editor && editor?.hasMarkedText() == true,
+               "activation recovery preserves the field editor and Chinese composition")
+        editor?.unmarkText()
+        window.makeFirstResponder(nil)
+        window.contentView = originalContent
 
         let mainMenu = NSMenu()
         mainMenu.addItem(NSMenuItem())

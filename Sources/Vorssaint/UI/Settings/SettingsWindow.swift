@@ -10,6 +10,21 @@ class SettingsWindow: NSWindow {
     var isMouseButtonCaptureActive: () -> Bool = { false }
     private var navigationButtons: Set<Int> = []
 
+    /// A non-activating island can leave a field looking focused while the
+    /// previous application still owns keyboard input. Becoming key and
+    /// activating the application are separate operations on macOS.
+    override func becomeKey() {
+        super.becomeKey()
+        activateForKeyboardInput()
+    }
+
+    func activateForKeyboardInput() {
+        guard attachedSheet == nil, NSApp.modalWindow == nil else { return }
+        guard !NSApp.isActive || NSWorkspace.shared.frontmostApplication?.processIdentifier
+                != ProcessInfo.processInfo.processIdentifier else { return }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     static func navigationMenu(language: AppLanguage) -> NSMenu {
         let strings = SettingsNavigationStrings.localized(language)
         let menu = NSMenu(title: strings.go)
@@ -59,6 +74,14 @@ class SettingsWindow: NSWindow {
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
+        case .leftMouseDown, .rightMouseDown:
+            // A field may already be first responder, so clicking it again
+            // need not produce becomeKey. Reclaim activation on this explicit
+            // interaction before AppKit places the caret; keep the same event
+            // and editor so selection and input-method composition stay native.
+            activateForKeyboardInput()
+            if attachedSheet == nil, NSApp.modalWindow == nil, !isKeyWindow { makeKey() }
+            super.sendEvent(event)
         case .otherMouseDown:
             let button = Int64(event.buttonNumber)
             guard canNavigate,
