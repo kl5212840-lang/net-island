@@ -33,6 +33,8 @@ struct NotchControlsView: View {
         }()
         if items.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
+        } else if appearance.controlsCustom {
+            customGrid(items)
         } else {
             VStack(spacing: NotchLayout.rowSpacing) {
                 if layout.levelRow > 0 {
@@ -70,6 +72,38 @@ struct NotchControlsView: View {
         }
     }
 
+    private func customGrid(_ items: [NotchControlItem]) -> some View {
+        let slots = appearance.controlSlots(items, width: size.width)
+        return ZStack(alignment: .topLeading) {
+            ForEach(slots) { slot in
+                let style = appearance.controlStyle(slot.item)
+                let contentWidth = appearance.controlContentWidth(slot.item, slotWidth: slot.frame.width)
+                let alignment: Alignment = style.alignment == "left" ? .leading : style.alignment == "right" ? .trailing : .center
+                Group {
+                    if slot.item == .music {
+                        NotchMusicControlsView(notch: service, height: slot.frame.height,
+                            artworkSize: max(40, min(120, contentWidth - 168)))
+                    } else if slot.item.isLevel {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if appearance.controlsValues {
+                                HStack { Text(slot.item.title(l10n)); Spacer(); Text(reading(slot.item)).monospacedDigit() }
+                                    .font(.system(size: style.font)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            level(slot.item)
+                        }
+                    } else {
+                        shortcut(slot.item)
+                    }
+                }
+                .environment(\.notchControlSizing, style)
+                .frame(width: contentWidth, height: slot.frame.height)
+                .frame(width: slot.frame.width, height: slot.frame.height, alignment: alignment)
+                .offset(x: slot.frame.minX, y: slot.frame.minY)
+            }
+        }
+        .frame(width: size.width, height: appearance.customControlsHeight(items, width: size.width), alignment: .topLeading)
+    }
+
     private func reading(_ item: NotchControlItem) -> String {
         let value: Double?
         switch item {
@@ -94,34 +128,7 @@ struct NotchControlsView: View {
         }
     }
 
-    /// A narrow level keeps the sun and the way to set brightness up; a
-    /// wider one has room to name it.
-    private var brightnessSetup: some View {
-        let settings = Button(l10n.s.menuSettings) {
-            service.perform {
-                SettingsRouter.shared.request(AppFeature.brightness.settingsDestination)
-                (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
-            }
-        }.buttonStyle(.plain).foregroundStyle(.secondary).font(.system(size: 11))
-        let sun = Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                sun
-                Text(FeatureStrings.notch(l10n.language).brightness).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                Spacer(minLength: 4)
-                settings
-            }
-            HStack(spacing: 6) {
-                sun
-                settings.lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .help(FeatureStrings.notch(l10n.language).brightness)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(FeatureStrings.notch(l10n.language).brightness)
-        }
-        .frame(height: 28)
-    }
+    private var brightnessSetup: some View { NotchBrightnessSetup(service: service) }
 
     @ViewBuilder private func shortcut(_ item: NotchControlItem) -> some View {
         switch item {
@@ -146,6 +153,39 @@ struct NotchControlsView: View {
         case .calendar: NotchCalendarTile(service: service)
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
         }
+    }
+}
+
+private struct NotchBrightnessSetup: View {
+    let service: NotchService
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchControlSizing) private var sizing
+    var body: some View {
+        let settings = Button(l10n.s.menuSettings) {
+            service.perform {
+                SettingsRouter.shared.request(AppFeature.brightness.settingsDestination)
+                (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+            }
+        }.buttonStyle(.plain).foregroundStyle(.secondary).font(.system(size: sizing?.font ?? 11))
+        let sun = Image(systemName: "sun.max.fill").font(.system(size: sizing?.glyph ?? 12, weight: .medium))
+            .frame(width: max(18, (sizing?.glyph ?? 12) + 6))
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                sun
+                Text(FeatureStrings.notch(l10n.language).brightness).font(.system(size: sizing?.font ?? 12, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+                settings
+            }
+            HStack(spacing: 6) {
+                sun
+                settings.lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .help(FeatureStrings.notch(l10n.language).brightness)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(FeatureStrings.notch(l10n.language).brightness)
+        }
+        .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
     }
 }
 
@@ -176,6 +216,7 @@ struct NotchAudioControls: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchControlSizing) private var sizing
     private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
     private var deviceName: String {
         mixer.outputDevices.first(where: { $0.uid == mixer.currentOutputDeviceUID })?.name ?? l10n.s.mixerSystemOutputTitle
@@ -188,7 +229,7 @@ struct NotchAudioControls: View {
             NotchLevelChooser(title: l10n.s.mixerSystemOutputTitle, items: outputItems)
                 .accessibilityValue(deviceName)
         }
-        .frame(height: 28)
+        .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
         .help(mixer.outputSwitchError ?? deviceName)
     }
 
@@ -204,11 +245,11 @@ struct NotchAudioControls: View {
             if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
         } label: {
             Image(systemName: mixer.systemOutputMuted == true ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: sizing?.glyph ?? 12, weight: .medium))
                 .foregroundStyle(mixer.systemOutputMuted == true ? Color.red : Color.white)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: mixer.systemOutputMuted)
-                .frame(width: 18, height: 18)
+                .frame(width: max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))
@@ -224,7 +265,7 @@ struct NotchAudioControls: View {
                              label: FeatureStrings.notch(l10n.language).volume, trackThickness: 8, easesChanges: true)
                 .frame(height: 24)
         } else {
-            Text(l10n.s.mixerOutputUnavailable).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(l10n.s.mixerOutputUnavailable).font(.system(size: sizing?.font ?? 10)).foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
         }
@@ -311,6 +352,7 @@ struct NotchLevelRow<Level: View>: View {
 private struct NotchBrightnessControls: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchControlSizing) private var sizing
     private var displays: [BrightnessDisplay] { service.displays.filter { $0.isActive && $0.method != nil } }
     /// The display the brightness keys last moved, or the one picked here,
     /// so a key press moves this slider.
@@ -329,7 +371,7 @@ private struct NotchBrightnessControls: View {
                     .accessibilityValue(display.name)
             }
         }
-        .frame(height: 28)
+        .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
         .help(display?.name ?? FeatureStrings.brightness(l10n.language).noDisplays)
         .onAppear { service.refresh() }
     }
@@ -337,7 +379,8 @@ private struct NotchBrightnessControls: View {
     /// Volume leads with its mute button; the sun keeps that button's width
     /// so both sliders start on the same line.
     private var glyph: some View {
-        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+        Image(systemName: "sun.max.fill").font(.system(size: sizing?.glyph ?? 12, weight: .medium))
+            .frame(width: max(18, (sizing?.glyph ?? 12) + 6))
     }
 
     private func displayItems(current: BrightnessDisplay) -> [NotchMenuItem] {
@@ -356,7 +399,7 @@ private struct NotchBrightnessControls: View {
                 .frame(height: 24)
         } else {
             Text(FeatureStrings.brightness(l10n.language).noDisplays)
-                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                .font(.system(size: sizing?.font ?? 10)).foregroundStyle(.secondary).lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
         }
     }
@@ -368,6 +411,7 @@ private struct NotchKeyboardLightControls: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchControlSizing) private var sizing
     private var title: String { FeatureStrings.brightness(l10n.language).keyboardLight }
 
     var body: some View {
@@ -375,7 +419,7 @@ private struct NotchKeyboardLightControls: View {
             glyph
             slider
         }
-        .frame(height: 28)
+        .frame(height: max(28, (sizing?.glyph ?? 12) + 8))
         .help(title)
         .onAppear { service.refreshKeyboardLight() }
     }
@@ -389,10 +433,10 @@ private struct NotchKeyboardLightControls: View {
             service.setKeyboardLightEnabled(!enabled)
         } label: {
             Image(systemName: service.keyboardLightEnabled == false ? "light.min" : "light.max")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: sizing?.glyph ?? 12, weight: .medium))
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: service.keyboardLightEnabled)
-                .frame(width: 18, height: 18)
+                .frame(width: max(18, (sizing?.glyph ?? 12) + 6), height: max(18, (sizing?.glyph ?? 12) + 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))
@@ -409,7 +453,7 @@ private struct NotchKeyboardLightControls: View {
                 .frame(height: 24)
         } else {
             Text(FeatureStrings.notchEditor(l10n.language).keyboardLightUnavailable)
-                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                .font(.system(size: sizing?.font ?? 10)).foregroundStyle(.secondary).lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
         }
     }
@@ -454,22 +498,28 @@ struct NotchActionTile: View {
     var accent: NotchTileAccent = .selection
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchControlSizing) private var sizing
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(active ? accent.glyph : .white.opacity(0.85))
+                Image(systemName: symbol).font(.system(size: sizing?.glyph ?? 17, weight: .medium))
+                    .foregroundStyle(active ? (sizing?.shape == "plain" ? accent.fill : accent.glyph) : .white.opacity(0.85))
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 40, height: 40)
-                    .background(active ? accent.fill : Color.white.opacity(0.075), in: Circle())
+                    .frame(width: sizing?.circle ?? 40, height: sizing?.circle ?? 40)
+                    .background {
+                        let fill = active ? accent.fill : Color.white.opacity(0.075)
+                        if sizing?.shape == "square" { RoundedRectangle(cornerRadius: 10).fill(fill) }
+                        else if sizing?.shape != "plain" { Circle().fill(fill) }
+                    }
                     .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: symbol)
-                label
+                if sizing?.labels != false { label
                     .frame(maxWidth: .infinity)
-                    .frame(height: 28, alignment: .top)
+                    .frame(height: sizing.map { $0.font * 2.5 } ?? 28, alignment: .top)
+                }
             }
             .padding(.horizontal, 4)
             .frame(maxWidth: .infinity)
-            .frame(height: NotchLayout.shortcutHeight)
+            .frame(height: sizing?.height ?? NotchLayout.shortcutHeight)
             .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: active)
             .contentShape(RoundedRectangle(cornerRadius: 14))
         }
@@ -477,6 +527,7 @@ struct NotchActionTile: View {
         .accessibilityLabel(title)
         .accessibilityValue(reading ?? "")
         .accessibilityAddTraits(active ? .isSelected : [])
+        .notchFastHelp(sizing?.labels == false ? title : "")
         .help(title)
     }
 
@@ -487,7 +538,7 @@ struct NotchActionTile: View {
                 // "dom, 10:45 p. m.", needs up to 91 pt on a 68 pt line. The
                 // smaller optical size spaces its letters wider, so scaling
                 // alone would still cut it off.
-                Text(reading).font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                Text(reading).font(.system(size: sizing?.font ?? 11, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(.white)
                     .allowsTightening(true)
                     .minimumScaleFactor(0.7)
@@ -500,7 +551,7 @@ struct NotchActionTile: View {
             .lineLimit(1)
             .minimumScaleFactor(0.85)
         } else {
-            Text(title).font(.system(size: 11, weight: .medium))
+            Text(title).font(.system(size: sizing?.font ?? 11, weight: .medium))
                 .foregroundStyle(.white)
                 .lineLimit(2).multilineTextAlignment(.center)
                 .minimumScaleFactor(0.85)
@@ -509,8 +560,18 @@ struct NotchActionTile: View {
     }
 
     private func readingTitle(_ text: String) -> some View {
-        Text(text).font(.system(size: 11, weight: .medium))
+        Text(text).font(.system(size: sizing?.font ?? 11, weight: .medium))
             .foregroundStyle(.white.opacity(0.7))
+    }
+}
+
+private struct NotchControlSizingKey: EnvironmentKey {
+    static let defaultValue: NotchControlSizing? = nil
+}
+extension EnvironmentValues {
+    var notchControlSizing: NotchControlSizing? {
+        get { self[NotchControlSizingKey.self] }
+        set { self[NotchControlSizingKey.self] = newValue }
     }
 }
 

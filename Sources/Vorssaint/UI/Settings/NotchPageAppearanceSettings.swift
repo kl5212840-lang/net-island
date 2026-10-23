@@ -7,8 +7,16 @@ struct NotchPageAppearanceSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @AppStorage(NotchPageAppearance.storageKey) private var data = Data()
+    @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
     @State private var toolsListExpanded = false
+    @State private var controlDetailsExpanded = false
+    @State private var editingControl: NotchControlItem = .brightness
     @State private var dragging: QuickLauncherItem?
+    init(module: NotchModule, expandControls: Bool = false, control: NotchControlItem = .brightness) {
+        self.module = module
+        _controlDetailsExpanded = State(initialValue: expandControls)
+        _editingControl = State(initialValue: control)
+    }
     private var chinese: Bool { NotchNetworkStrings(l10n.language).chinese }
     private var appearance: NotchPageAppearance { .init(data: data) }
     private func t(_ zh: String, _ en: String) -> String { chinese ? zh : en }
@@ -36,6 +44,7 @@ struct NotchPageAppearanceSettings: View {
             }
         }
         .onChange(of: data) { _, _ in NotchService.shared.syncWithPreferences(); launcher.objectWillChange.send() }
+        .onChange(of: controlOrder) { _, _ in NotchService.shared.syncWithPreferences() }
     }
     private var tools: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -102,6 +111,13 @@ struct NotchPageAppearanceSettings: View {
     }
     private var controls: some View {
         VStack(alignment: .leading, spacing: 14) {
+            Picker(t("布局方式", "Layout mode"), selection: flag("controls.custom")) {
+                Text(t("原版分组", "Original groups")).tag(false)
+                Text(t("自定义网格", "Custom grid")).tag(true)
+            }
+            if appearance.controlsCustom {
+                customControls
+            } else {
             Text(t("位置与排列", "Placement and arrangement")).font(.callout.weight(.semibold))
             Picker(t("滑条位置", "Slider placement"), selection: string("controls.placement", "body")) {
                 Text(t("岛内正文（推荐）", "Inside the body (recommended)")).tag("body")
@@ -118,7 +134,94 @@ struct NotchPageAppearanceSettings: View {
             slider("controls.track", t("滑条长度", "Slider length"), fallback: 100, range: 50...100, suffix: "%")
             Text(t("控件显隐与拖动排序在下方设置，亮度等滑条也可拖动排序。", "Choose and reorder controls below, including the brightness and other sliders."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
+    }
+    private var customControls: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(t("滑条、播放和快捷操作可混合排序；所有控制项放在岛内，避开顶部图标和刘海。", "Mix sliders, playback and shortcuts in one order. All controls stay inside the body, clear of top shortcuts and the camera."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Picker(t("网格列数", "Grid columns"), selection: string("controls.gridColumns", "3")) {
+                ForEach(1...6, id: \.self) { Text("\($0)").tag(String($0)) }
+            }
+            slider("controls.gap", t("项目间距", "Item spacing"), fallback: 10, range: 4...28)
+            slider("controls.padding", t("四周留白", "Content padding"), fallback: 0, range: 0...24)
+            Toggle(t("显示滑条名称与百分比", "Show slider labels and percentages"), isOn: flag("controls.values"))
+            Text(t("窄岛会减少列数，滑条和播放区域会自动保留足够宽度；超出可见高度的内容可以滚动查看。", "Narrow islands reduce columns and keep sliders and playback wide enough. Scroll to reach content beyond the visible height."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup(isExpanded: $controlDetailsExpanded) {
+                controlDetails
+            } label: { Text(t("逐项顺序、位置与大小", "Per-item order, position and size")) }
+                .disclosureGroupStyle(SettingsDisclosureStyle())
+        }
+    }
+    private var orderedControls: [NotchControlItem] {
+        let stored = controlOrder.split(separator: ",").compactMap { NotchControlItem(rawValue: String($0)) }
+        var seen = Set<NotchControlItem>()
+        return (stored + NotchControlItem.allCases).filter { seen.insert($0).inserted }
+    }
+    private var controlDetails: some View {
+        let item = editingControl, key = appearance.controlKey(item), style = appearance.controlStyle(item)
+        let index = orderedControls.firstIndex(of: item) ?? 0
+        let isShortcut = !item.isLevel && item != .music
+        let minimum = Double(style.minimumHeight)
+        return VStack(alignment: .leading, spacing: 14) {
+            Picker(t("控制项", "Control"), selection: $editingControl) {
+                ForEach(orderedControls) { Label($0.title(l10n), systemImage: $0.symbol).tag($0) }
+            }
+            HStack {
+                Text(t("队列顺序", "Queue order")); Spacer()
+                Text("\(index + 1) / \(orderedControls.count)").monospacedDigit().foregroundStyle(.secondary)
+                controlMove(up: true); controlMove(up: false)
+            }
+            Text(t("也可调整尚未启用的控制项；在下方勾选后生效。", "You can prepare hidden controls here; enable them below to show them."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Divider()
+            Picker(t("起始列", "Starting column"), selection: string(key + "column", "0")) {
+                Text(t("自动接排", "Automatic")).tag("0")
+                ForEach(1...6, id: \.self) { Text("\($0)").tag(String($0)) }
+            }
+            Picker(t("占用列数", "Column span"), selection: string(key + "span", item == .music ? "6" : item.isLevel ? "2" : "1")) {
+                ForEach(1...6, id: \.self) { Text("\($0)").tag(String($0)) }
+            }
+            Toggle(t("另起一行", "Start a new row"), isOn: flag(key + "newRow"))
+            Picker(t("区域内对齐", "Alignment within the area"), selection: string(key + "alignment", "center")) {
+                Text(t("靠左", "Left")).tag("left"); Text(t("居中", "Center")).tag("center"); Text(t("靠右", "Right")).tag("right")
+            }
+            slider(key + "width", t("区域内目标宽度", "Target width within the area"), fallback: Double(style.width * 100), range: 40...100, suffix: "%")
+            Text(t("会自动保留文字、图标与滑条所需的最小空间，避免拥挤或重叠。", "The minimum space needed by labels, icons and sliders is retained to prevent crowding or overlap."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            slider(key + "height", t("项目高度", "Item height"), fallback: Double(style.height), range: minimum...260)
+            if item != .music {
+                Divider()
+                slider(key + "icon", t("图标字号", "Icon size"), fallback: item.isLevel ? 12 : 17, range: 10...32)
+                if isShortcut {
+                    Picker(t("图标底形", "Icon background"), selection: string(key + "shape", "circle")) {
+                        Text(t("圆形", "Circle")).tag("circle")
+                        Text(t("圆角方形", "Rounded square")).tag("square")
+                        Text(t("仅图形", "No background")).tag("plain")
+                    }
+                    slider(key + "circle", t("图标区域大小", "Icon area size"), fallback: 40, range: Double(max(24, style.glyph + 12))...64)
+                    Toggle(t("仅显示图标", "Icon only"), isOn: flag(key + "iconOnly"))
+                }
+                if !isShortcut || style.labels {
+                    slider(key + "font", t("文字大小", "Label size"), fallback: 11, range: 9...16)
+                }
+            }
+            Button(t("恢复此控制项默认值", "Restore this control’s defaults")) {
+                var next = appearance; next.reset(key); data = next.encoded
+            }
+        }
+    }
+    private func controlMove(up: Bool) -> some View {
+        let index = orderedControls.firstIndex(of: editingControl) ?? 0
+        return Button {
+            var items = orderedControls; let destination = index + (up ? -1 : 1)
+            guard items.indices.contains(destination) else { return }
+            items.swapAt(index, destination); controlOrder = items.map(\.rawValue).joined(separator: ",")
+        } label: { Image(systemName: up ? "chevron.up" : "chevron.down").frame(width: 24, height: 26) }
+            .buttonStyle(.plain).disabled(up ? index == 0 : index == orderedControls.count - 1)
+            .accessibilityLabel(t(up ? "上移" : "下移", up ? "Move up" : "Move down") + " " + editingControl.title(l10n))
     }
     private var system: some View {
         VStack(alignment: .leading, spacing: 14) {

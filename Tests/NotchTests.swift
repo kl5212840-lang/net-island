@@ -8,6 +8,7 @@ import SwiftUI
 
 enum NotchTests {
     private static func pageAppearanceContracts(_ suite: TestSuite) {
+        controlGridContracts(suite)
         let narrow = NotchNetworkStyle(fontSize: 9, wingWidth: 24, fullUnits: true)
         let short = narrow.requiredWidth(download: 15 * 1024, upload: 1000, inBits: false)
         let long = narrow.requiredWidth(download: 999 * 1024 * 1024, upload: 999, inBits: false)
@@ -82,6 +83,64 @@ enum NotchTests {
         suite.expect(!restored.accepts(" 工作 ") && restored.accepts("另一个")
             && NotchPagePresetLibrary(data: Data([0xff])).encoded == nil,
             "preset names remain unique and malformed libraries cannot be silently overwritten")
+    }
+
+    private static func controlGridContracts(_ suite: TestSuite) {
+        let items: [NotchControlItem] = [.microphone, .brightness, .keepAwake, .music, .keyboardLight, .volume, .timer]
+        let original = NotchPageAppearance()
+        suite.expect(!original.controlsCustom, "custom control packing is opt-in and keeps existing group defaults")
+        var appearance = NotchPageAppearance(values: ["controls.custom": "true", "controls.gridColumns": "3",
+            "controls.padding": "12", "controls.item.microphone.column": "3", "controls.item.brightness.span": "2",
+            "controls.item.keepAwake.newRow": "true", "controls.item.keepAwake.icon": "32",
+            "controls.item.keepAwake.circle": "24", "controls.item.keepAwake.height": "36"])
+        suite.expect(appearance.controlStyle(.keepAwake).circle >= 44 && appearance.controlStyle(.keepAwake).height >= 80,
+            "individual icon and label dimensions always reserve a complete hit area")
+        let largeLevel = NotchPageAppearance(values: ["controls.values": "true", "controls.item.brightness.icon": "32",
+            "controls.item.brightness.font": "16", "controls.item.brightness.height": "36"]).controlStyle(.brightness)
+        suite.expect(largeLevel.minimumHeight >= 68 && largeLevel.height >= largeLevel.minimumHeight,
+            "largest slider glyph and label reserve their combined native height plus spacing")
+        var band = NotchBand(); band.besideCamera = true; band.side = 200
+        appearance.values["controls.placement"] = "header"
+        suite.expect(appearance.bandLevels(2, band: band, headerHasButtons: false) == 0,
+            "custom controls remain inside the body even with a legacy header preference")
+        for width: CGFloat in [72, 160, 224, 312, 544, 720] {
+            for columns in 1...6 {
+                appearance.values["controls.gridColumns"] = String(columns)
+                let slots = appearance.controlSlots(items, width: width)
+                suite.expect(slots.map(\.item) == items, "custom controls keep mixed slider and shortcut reading order")
+                var safe = true
+                for (index, slot) in slots.enumerated() {
+                    safe = safe && slot.frame.minX >= 0 && slot.frame.maxX <= width + 0.01
+                        && slot.frame.minY >= 0 && slot.frame.height.isFinite && slot.frame.height > 0
+                    let content = appearance.controlContentWidth(slot.item, slotWidth: slot.frame.width)
+                    safe = safe && content > 0 && content <= slot.frame.width
+                    for other in slots.dropFirst(index + 1) { safe = safe && !slot.frame.intersects(other.frame) }
+                }
+                suite.expect(safe, "per-item spans and starting columns adapt without overlap on narrow islands")
+                suite.expect(appearance.customControlsHeight(items, width: width) >= (slots.map(\.frame.maxY).max() ?? 0),
+                    "custom content height keeps every packed row reachable by scrolling")
+            }
+        }
+        appearance.values["controls.gridColumns"] = "3"
+        let slots = appearance.controlSlots([.microphone, .brightness], width: 544)
+        suite.expect(slots[0].frame.minX > 300 && slots[1].frame.minY >= slots[0].frame.maxY + appearance.controlsGap,
+            "an explicit right column leaves space and a conflicting following span moves to the next row")
+        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
+        geometry.pageAppearance = appearance; geometry.systemNavigationInset = 22
+        let size = geometry.expandedSize(module: .controls, controlItems: [.brightness, .microphone])
+        let body = geometry.contentSize(for: size)
+        suite.expect(abs(body.height - min(geometry.pageBudget, appearance.customControlsHeight([.brightness, .microphone], width: body.width - 44))) < 0.01,
+            "custom page geometry measures the same symmetric navigation gutter as its rendered grid")
+        suite.expect(NotchPageAppearance(data: appearance.encoded) == appearance,
+            "per-item controls retain their positions and dimensions in saved layout presets")
+        let complete = NotchPageAppearance(values: Dictionary(uniqueKeysWithValues: (0..<200).map {
+            ("controls.saved.\($0)", String(repeating: "x", count: 64))
+        }))
+        var fullLibrary = NotchPagePresetLibrary(data: Data())
+        fullLibrary.items = (0..<30).map { .init(name: "Layout \($0)", appearance: complete, system: [:]) }
+        let reloaded = NotchPagePresetLibrary(data: fullLibrary.encoded!)
+        suite.expect(reloaded.readable && reloaded.items.count == 30 && reloaded.items[0].appearance == complete,
+            "thirty complete per-control presets remain readable beyond the old small library cap")
     }
 
     private static func systemCustomizationContracts(_ suite: TestSuite) {

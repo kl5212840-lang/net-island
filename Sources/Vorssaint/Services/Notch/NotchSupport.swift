@@ -2361,7 +2361,8 @@ struct NotchGeometry: Equatable {
     func page(_ module: NotchModule, controls: [NotchControlItem], sectionsButton: Bool) -> NotchGeometry {
         var result = self
         result.pageTop = module.pageTop
-        result.pageContentWidth = NotchLayout.naturalContentWidth(module, controls: controls, within: contentWidth)
+        result.pageContentWidth = module == .controls && pageAppearance.controlsCustom ? nil
+            : NotchLayout.naturalContentWidth(module, controls: controls, within: contentWidth)
         result.sectionsButtonInRow = sectionsButton
         return result
     }
@@ -2736,6 +2737,7 @@ struct NotchGeometry: Equatable {
     func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
                       detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = true, musicHasContent: Bool = true,
+                      controlItems: [NotchControlItem]? = nil,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
@@ -2758,6 +2760,11 @@ struct NotchGeometry: Equatable {
         } else {
             switch module {
             case .controls:
+                if pageAppearance.controlsCustom, let controlItems {
+                    contentHeight = min(pageBudget, pageAppearance.customControlsHeight(controlItems,
+                        width: max(0, contentWidth - systemNavigationInset * 2)))
+                    break
+                }
                 // The levels sit in the top row; only playback, the shortcuts
                 // and the levels a camera's row cannot split evenly make the page.
                 // Those keep a row below the camera's that a preset adds to

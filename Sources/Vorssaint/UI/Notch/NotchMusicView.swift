@@ -724,6 +724,7 @@ struct NotchMusicTimeline: View {
 struct NotchMusicControlsView: View {
     @ObservedObject var notch: NotchService
     var height: CGFloat = NotchLayout.cardHeight
+    var artworkSize: CGFloat? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
@@ -742,7 +743,7 @@ struct NotchMusicControlsView: View {
                 if isIdle, NotchPreferredPlayer.open() { return }
                 notch.select(.music)
             } label: {
-                NotchArtwork(image: music.artwork, size: max(40, height - 24), source: music.playback?.track)
+                NotchArtwork(image: music.artwork, size: min(artworkSize ?? .greatestFiniteMagnitude, max(40, height - 24)), source: music.playback?.track)
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 16))
             .accessibilityLabel(idleOpens ? openTitle : text.mediaNowPlaying)

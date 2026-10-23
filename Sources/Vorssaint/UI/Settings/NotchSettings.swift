@@ -74,6 +74,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLowBatteryMenuBar) private var lowBatteryMenuBar = true
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
+    @AppStorage(NotchPageAppearance.storageKey) private var pageAppearanceData = Data()
     @AppStorage(DefaultsKey.notchShowInCaptures) private var showInCaptures = true
     @AppStorage(DefaultsKey.notchLockScreen) private var lockScreen = false
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
@@ -402,6 +403,20 @@ struct NotchSettings: View {
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
         case .controls:
+            if NotchPageAppearance(data: pageAppearanceData).controlsCustom {
+                Text(editorControlOrderTitle).font(.subheadline.weight(.medium))
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
+                    ForEach(orderedAllControls) { item in
+                        PanelReorderableItem(item: item,
+                            order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
+                            dragging: $draggingControl) {
+                            toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
+                                reason: controlReason(item), reservesReason: !orderedAllControls.allSatisfy { $0.isAvailable() },
+                                unavailableAction: controlUnavailableAction(item))
+                        }
+                    }
+                }
+            } else {
             let primary = orderedAllControls.filter { $0.isLevel || $0 == .music }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
                 ForEach(primary) { item in
@@ -425,6 +440,7 @@ struct NotchSettings: View {
                                    unavailableAction: controlUnavailableAction(item))
                     }
                 }
+            }
             }
             Divider()
             let activities = FeatureStrings.notchActivities(l10n.language)
@@ -539,6 +555,10 @@ struct NotchSettings: View {
         case .mixer, .system, .tools:
             EmptyView()
         }
+    }
+
+    private var editorControlOrderTitle: String {
+        NotchNetworkStrings(l10n.language).chinese ? "显示与拖动排序" : "Visibility and drag order"
     }
 
     var restingContentCard: some View {

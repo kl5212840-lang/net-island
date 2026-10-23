@@ -13,7 +13,7 @@ struct NotchPageAppearance: Codable, Equatable {
     init(data: Data) {
         self.init()
         guard data.count <= 65_536, let decoded = try? JSONDecoder().decode(Self.self, from: data),
-              decoded.values.count <= 150 else { return }
+              decoded.values.count <= 512 else { return }
         values = decoded.values.filter { entry in
             Self.prefixes.contains(where: { entry.key.hasPrefix($0) }) && entry.key.count <= 80 && entry.value.count <= 2000
         }
@@ -48,6 +48,59 @@ struct NotchPageAppearance: Codable, Equatable {
     var controlsColumns: Int { Int(number("controls.columns", 2, 1...2)) }
     var controlsTrack: CGFloat { number("controls.track", 100, 50...100) / 100 }
     var controlsValues: Bool { flag("controls.values") }
+    var controlsCustom: Bool { flag("controls.custom") }
+    var controlsGridColumns: Int { Int(number("controls.gridColumns", 3, 1...6)) }
+    var controlsGap: CGFloat { number("controls.gap", 10, 4...28) }
+    var controlsPadding: CGFloat { number("controls.padding", 0, 0...24) }
+    func controlKey(_ item: NotchControlItem) -> String { "controls.item.\(item.rawValue)." }
+    func controlStyle(_ item: NotchControlItem) -> NotchControlSizing {
+        let key = controlKey(item)
+        let glyph = number(key + "icon", item.isLevel ? 12 : 17, 10...32)
+        let circle = max(glyph + 12, number(key + "circle", 40, 24...64))
+        let font = number(key + "font", 11, 9...16)
+        let labels = !flag(key + "iconOnly")
+        let minimum = item == .music ? CGFloat(128) : item.isLevel ? max(36, max(28, glyph + 8) + (controlsValues ? ceil(font * 1.5) + 4 : 0))
+            : circle + (labels ? font * 2.5 + 6 : 0) + 4
+        return .init(glyph: glyph, circle: circle, font: font, labels: labels,
+            height: max(minimum, number(key + "height", item == .music ? 160 : item.isLevel ? 52 : 80, 36...260)),
+            width: number(key + "width", item.isLevel ? Double(controlsTrack * 100) : 100, 40...100) / 100,
+            alignment: values[key + "alignment"] ?? "center", shape: values[key + "shape"] ?? "circle", minimumHeight: minimum)
+    }
+    func controlContentWidth(_ item: NotchControlItem, slotWidth: CGFloat) -> CGFloat {
+        let style = controlStyle(item)
+        let minimum: CGFloat = item == .music ? 208 : item.isLevel ? 108 : style.circle + 8
+        return min(slotWidth, max(minimum, slotWidth * style.width))
+    }
+    /// Sequential packing keeps order predictable. An explicit starting column
+    /// leaves empty cells; conflicts move to the next row instead of overlapping.
+    func controlSlots(_ items: [NotchControlItem], width: CGFloat) -> [NotchControlSlot] {
+        let padding = min(controlsPadding, max(0, (width - 72) / 2))
+        let available = max(1, width - padding * 2)
+        let columns = min(controlsGridColumns, max(1, Int((available + controlsGap) / (72 + controlsGap))))
+        let cell = max(1, (available - CGFloat(columns - 1) * controlsGap) / CGFloat(columns))
+        var result: [NotchControlSlot] = [], nextColumn = 0
+        var top = padding, rowHeight: CGFloat = 0
+        for item in items {
+            let key = controlKey(item), style = controlStyle(item)
+            let minimumWidth: CGFloat = item == .music ? 240 : item.isLevel ? 140 : 64
+            let safeSpan = max(1, Int(ceil((minimumWidth + controlsGap) / (cell + controlsGap))))
+            let span = min(columns, max(safeSpan, Int(number(key + "span", item == .music ? 6 : item.isLevel ? 2 : 1, 1...6))))
+            let requested = Int(number(key + "column", 0, 0...6))
+            var column = requested == 0 ? nextColumn : min(columns - span, requested - 1)
+            if nextColumn > 0 && (flag(key + "newRow") || column < nextColumn || column + span > columns) {
+                top += rowHeight + controlsGap; rowHeight = 0; nextColumn = 0
+                column = requested == 0 ? 0 : min(columns - span, requested - 1)
+            }
+            let frame = CGRect(x: padding + CGFloat(column) * (cell + controlsGap), y: top,
+                width: CGFloat(span) * cell + CGFloat(span - 1) * controlsGap, height: style.height)
+            result.append(.init(item: item, frame: frame))
+            nextColumn = column + span; rowHeight = max(rowHeight, style.height)
+        }
+        return result
+    }
+    func customControlsHeight(_ items: [NotchControlItem], width: CGFloat) -> CGFloat {
+        max(NotchLayout.emptyHeight, (controlSlots(items, width: width).map(\.frame.maxY).max() ?? 0) + min(controlsPadding, max(0, (width - 72) / 2)))
+    }
     var legacyLevelRow: Bool { values["controls.placement"] == "header" && values["controls.columns"] == nil }
     func controlsColumnCount(levels: Int) -> Int { legacyLevelRow ? max(1, levels) : controlsColumns }
     var controlsRowHeight: CGFloat { controlsValues ? 52 : legacyLevelRow ? NotchLayout.levelRowHeight : 36 }
@@ -60,7 +113,7 @@ struct NotchPageAppearance: Codable, Equatable {
     /// A top-row request is honored only without custom header buttons. Even
     /// one such button reserves its wing; levels then move into the body.
     func bandLevels(_ count: Int, band: NotchBand, headerHasButtons: Bool) -> Int {
-        guard values["controls.placement"] == "header", !headerHasButtons else { return 0 }
+        guard !controlsCustom, values["controls.placement"] == "header", !headerHasButtons else { return 0 }
         return NotchLayout.bandLevelCount(count, band: band)
     }
     var systemFontScale: CGFloat { number("system.font", 1, 0.75...1.4) }
@@ -75,6 +128,19 @@ struct NotchPageAppearance: Codable, Equatable {
                      margin: number(prefix + "margin", 0, 0...24))
     }
     mutating func reset(_ prefix: String) { values = values.filter { !$0.key.hasPrefix(prefix) } }
+}
+
+struct NotchControlSizing: Equatable {
+    var glyph, circle, font: CGFloat
+    var labels: Bool
+    var height, width: CGFloat
+    var alignment, shape: String
+    var minimumHeight: CGFloat
+}
+struct NotchControlSlot: Identifiable, Equatable {
+    let item: NotchControlItem
+    let frame: CGRect
+    var id: NotchControlItem { item }
 }
 
 struct NotchNavigationStyle: Equatable {
@@ -125,7 +191,7 @@ struct NotchPagePresetLibrary {
     var readable = true
     init(data: Data) {
         guard !data.isEmpty else { return }
-        guard data.count <= 262_144, let decoded = try? JSONDecoder().decode([NotchPagePreset].self, from: data), decoded.count <= 30 else { readable = false; return }
+        guard data.count <= 4_194_304, let decoded = try? JSONDecoder().decode([NotchPagePreset].self, from: data), decoded.count <= 30 else { readable = false; return }
         var ids = Set<UUID>(), names = Set<String>()
         for var preset in decoded {
             preset.name = NotchNetworkPresetLibrary.cleanName(preset.name)

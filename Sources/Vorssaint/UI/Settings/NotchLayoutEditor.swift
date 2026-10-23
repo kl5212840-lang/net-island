@@ -160,7 +160,7 @@ struct NotchLayoutEditor: View {
         return previewGeometry.expandedSize(module: .controls,
             shortcutCount: items.filter { !$0.isLevel && $0 != .music }.count,
             sliderCount: items.filter(\.isLevel).count,
-            controlsHaveMusic: items.contains(.music)).height
+            controlsHaveMusic: items.contains(.music), controlItems: items).height
     }
 
     /// A narrow window shrinks the whole island rather than only its width.

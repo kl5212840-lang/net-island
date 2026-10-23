@@ -103,7 +103,8 @@ enum NotchNetworkProbe {
         .background(Color(nsColor: .windowBackgroundColor))
         capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
-        if arguments.contains("--page-layout-only") {
+        if arguments.contains("--page-layout-only") || arguments.contains("--controls-grid-only") {
+            let gridOnly = arguments.contains("--controls-grid-only")
             var header = NotchHeaderConfiguration()
             header.set(.networkReadout, at: .leftOuter); header.set(.control(.microphone), at: .leftMiddle)
             header.set(.settings, at: .rightOuter); header.set(.pin, at: .rightMiddle)
@@ -113,7 +114,22 @@ enum NotchNetworkProbe {
             overrides[DefaultsKey.notchHiddenControls] = "music"
             overrides[DefaultsKey.notchControlOrder] = "brightness,keyboardLight,volume,keepAwake"
             overrides[DefaultsKey.brightnessControlEnabled] = true
-            let variants: [(String, NotchPageAppearance)] = [
+            if gridOnly {
+                let shown: [NotchControlItem] = [.brightness, .keyboardLight, .keepAwake, .microphone, .timer, .music]
+                overrides[DefaultsKey.notchHiddenControls] = NotchControlItem.allCases.filter { !shown.contains($0) }.map(\.rawValue).joined(separator: ",")
+                overrides[DefaultsKey.notchControlOrder] = shown.map(\.rawValue).joined(separator: ",")
+            }
+            let grid = NotchPageAppearance(values: ["controls.custom": "true", "controls.gridColumns": "3", "controls.values": "true",
+                "controls.padding": "8", "controls.item.brightness.span": "3", "controls.item.brightness.width": "75",
+                "controls.item.brightness.icon": "20", "controls.item.keyboardLight.span": "2",
+                "controls.item.microphone.icon": "26", "controls.item.microphone.circle": "48", "controls.item.microphone.column": "3"])
+            var iconsGrid = grid
+            for item in [NotchControlItem.keepAwake, .microphone, .timer] {
+                iconsGrid.values[grid.controlKey(item) + "iconOnly"] = "true"
+                iconsGrid.values[grid.controlKey(item) + "height"] = "52"
+                iconsGrid.values[grid.controlKey(item) + "shape"] = item == .microphone ? "plain" : "square"
+            }
+            let variants: [(String, NotchPageAppearance)] = gridOnly ? [("original", .init()), ("grid", grid), ("icons", iconsGrid)] : [
                 ("original", .init()),
                 ("custom", .init(values: ["tools.columns": "4", "tools.scale": "1.2", "tools.font": "12", "tools.padding": "10", "tools.alignColumns": "true", "controls.columns": "1", "controls.values": "true", "controls.track": "75", "system.font": "1.2", "system.padding": "16", "system.tint": "cyan", "nav.shared.size": "14", "nav.shared.margin": "6"])),
                 ("icons", .init(values: ["tools.iconOnly": "true", "tools.columns": "6", "tools.alignColumns": "true", "tools.padding": "8", "nav.tools.override": "true", "nav.tools.position": "bottom"]))
@@ -122,25 +138,56 @@ enum NotchNetworkProbe {
                 overrides[NotchPageAppearance.storageKey] = appearance.encoded
                 UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
                 for width: CGFloat in [360, 600] {
-                    for module: NotchModule in [.system, .tools, .controls] {
+                    for module: NotchModule in (gridOnly ? [.controls] : [.system, .tools, .controls]) {
                         let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
-                            layout: .custom, customWidth: Double(width), customHeight: name == "custom" ? 420 : 300)
+                            layout: .custom, customWidth: Double(width), customHeight: gridOnly ? 620 : name == "custom" ? 420 : 300)
                         NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: module)
                         let size = NotchService.shared.surfaceSize
-                        capture(AnyView(NotchView(service: .shared).background(.black)
+                        capture(AnyView(NotchView(service: .shared).environment(\.notchSettingsPreview, gridOnly).background(.black)
                             .clipShape(NotchShape.island(height: size.height, geometry: geometry))), size: size,
                             name: "page-\(module.rawValue)-\(name)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
                     }
                 }
             }
-            for module: NotchModule in [.system, .tools, .controls] {
+            if gridOnly {
+                for width: CGFloat in [460, 760] {
+                    capture(AnyView(NotchPageAppearanceSettings(module: .controls, expandControls: true, control: .microphone)
+                        .padding(20).background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 1800),
+                        name: "control-icon-settings-\(language)-\(Int(width))", output: output, failures: &failures)
+                }
+                let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                    layout: .custom, customWidth: 360, customHeight: 240)
+                NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .controls)
+                let size = NotchService.shared.surfaceSize
+                capture(AnyView(NotchView(service: .shared).environment(\.notchSettingsPreview, true).background(.black)), size: size,
+                    name: "control-short-viewport-\(language)", output: output, failures: &failures, island: true)
+                var large = grid
+                large.values["controls.gap"] = "4"
+                for item in [NotchControlItem.brightness, .keyboardLight] {
+                    large.values[grid.controlKey(item) + "icon"] = "32"
+                    large.values[grid.controlKey(item) + "font"] = "16"
+                    large.values[grid.controlKey(item) + "height"] = "36"
+                }
+                overrides[NotchPageAppearance.storageKey] = large.encoded
+                overrides[DefaultsKey.brightnessControlEnabled] = false
+                UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+                for width: CGFloat in [360, 600] {
+                    let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                        layout: .custom, customWidth: Double(width), customHeight: 620)
+                    NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: .controls)
+                    let size = NotchService.shared.surfaceSize
+                    capture(AnyView(NotchView(service: .shared).environment(\.notchSettingsPreview, true).background(.black)), size: size,
+                        name: "control-large-setup-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+                }
+            }
+            for module: NotchModule in (gridOnly ? [.controls] : [.system, .tools, .controls]) {
                 for width: CGFloat in [460, 760] {
                     capture(AnyView(VStack(alignment: .leading, spacing: 16) {
                         NotchNavigationSettings(module: module)
-                        NotchPageAppearanceSettings(module: module)
+                        NotchPageAppearanceSettings(module: module, expandControls: gridOnly)
                         NotchPagePresetSettings()
                     }.padding(20).background(Color(nsColor: .windowBackgroundColor))),
-                        size: CGSize(width: width, height: module == .tools ? 2200 : 1200),
+                        size: CGSize(width: width, height: module == .tools || gridOnly ? 2400 : 1200),
                         name: "page-settings-\(module.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures)
                 }
             }

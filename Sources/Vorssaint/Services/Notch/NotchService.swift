@@ -450,8 +450,10 @@ final class NotchService: ObservableObject {
     private var networkWidthHold = NotchNetworkWidthHold()
 
 #if VORSSAINT_DEVELOPMENT
+    private var isPresentationProbe = false
     /// Capture the real view hierarchy without starting application services.
     func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool, selected: NotchModule = .tools) {
+        isPresentationProbe = true
         var configured = geometry
         configured.systemStyle = .stored()
         configured.pageAppearance = .stored()
@@ -896,6 +898,7 @@ final class NotchService: ObservableObject {
         return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
                                      shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
+                                     controlItems: controls,
                                      musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
                                      systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery,
                                                                                fans: SystemMonitor.shared.snapshot.fanSpeeds.count),
@@ -1165,6 +1168,11 @@ final class NotchService: ObservableObject {
     }
 
     func syncWithPreferences() {
+#if VORSSAINT_DEVELOPMENT
+        // Retained Settings previews observe volatile preference changes too;
+        // they must not start live Bluetooth, capture or automation services.
+        if isPresentationProbe { return }
+#endif
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         guard NotchSupport.isEnabled() else { stop(); return }
         syncNetworkPolicy()

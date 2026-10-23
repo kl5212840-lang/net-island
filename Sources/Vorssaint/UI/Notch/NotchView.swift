@@ -380,6 +380,7 @@ struct NotchView: View {
         switch service.selected {
         case .system: return NotchLayout.systemHoverInset(width: contentViewportSize.width)
         case .tools: return appearance.toolsPadding
+        case .controls: return appearance.controlsCustom ? appearance.controlsPadding : 0
         default: return 0
         }
     }
@@ -388,7 +389,13 @@ struct NotchView: View {
         switch service.selected {
         case .system: return service.expandedGeometry.systemStyle.cardHeight
         case .tools: return appearance.toolsHeight
-        case .controls: return NotchSupport.controls().contains(where: \.isLevel) ? appearance.controlsRowHeight : NotchLayout.shortcutHeight
+        case .controls:
+            if appearance.controlsCustom {
+                let slots = appearance.controlSlots(NotchSupport.controls(), width: contentViewportSize.width)
+                let top = slots.first?.frame.minY ?? 0
+                return slots.filter { $0.frame.minY == top }.map(\.frame.height).max() ?? 44
+            }
+            return NotchSupport.controls().contains(where: \.isLevel) ? appearance.controlsRowHeight : NotchLayout.shortcutHeight
         default: return 44
         }
     }
@@ -570,6 +577,10 @@ struct NotchView: View {
         switch service.selected {
         case .controls:
             let items = NotchSupport.controls()
+            if appearance.controlsCustom {
+                size.height = max(size.height, appearance.customControlsHeight(items, width: size.width))
+                break
+            }
             let shortcuts = items.filter { $0 != .music && !$0.isLevel }
             let levels = items.filter(\.isLevel).count
             let band = NotchBand(geometry: service.expandedGeometry, contentWidth: size.width)
