@@ -87,6 +87,7 @@ struct NotchNetworkToggle: View {
     @AppStorage(DefaultsKey.notchNetworkPresets) private var presetsData = Data()
     @AppStorage(DefaultsKey.notchHeaderNetworkIconOnly) private var iconOnly = false
     var compact = false
+    var customTitle = ""
     private var isCompact: Bool { compact || iconOnly }
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var isOn: Bool { idle == "network" && !paused && AppFeature.monitorNetwork.isAvailable }
@@ -96,7 +97,7 @@ struct NotchNetworkToggle: View {
             HStack(spacing: 5) {
                 Image(systemName: isOn ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
                     .font(.system(size: 13, weight: .medium))
-                if !isCompact { Text(text.quickTitle).font(.system(size: 11, weight: .medium)) }
+                if !isCompact { Text(customTitle.isEmpty ? text.quickTitle : customTitle).font(.system(size: 11, weight: .medium)).lineLimit(1) }
             }
             .foregroundStyle(isOn ? .white : .white.opacity(0.65))
             .padding(.horizontal, isCompact ? 7 : 9)
@@ -106,8 +107,8 @@ struct NotchNetworkToggle: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 13, lifts: false))
         .disabled(!AppFeature.monitorNetwork.isAvailable)
-        .help(text.quickHint)
-        .accessibilityLabel(text.title)
+        .help(customTitle.isEmpty ? text.quickHint : customTitle + " · " + text.quickHint)
+        .accessibilityLabel(customTitle.isEmpty ? text.title : customTitle)
         .accessibilityValue(isOn ? text.on : text.off)
         .accessibilityIdentifier("notch.network.toggle")
         .contextMenu {

@@ -12,8 +12,7 @@ struct NotchView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @AppStorage(DefaultsKey.notchNavigationPosition) private var navigationPosition = "top"
-    @AppStorage(DefaultsKey.notchHeaderSettingsPosition) private var headerSettingsPosition = "hidden"
-    @AppStorage(DefaultsKey.notchHeaderNetworkPosition) private var headerNetworkPosition = "leftOuter"
+    @AppStorage(DefaultsKey.notchHeaderLayout) private var headerLayoutData = Data()
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -465,15 +464,14 @@ struct NotchView: View {
     }
 
     @ViewBuilder private func headerShortcuts(at position: NotchHeaderPosition, wraps: Bool, compact: Bool) -> some View {
-        let networkHere = NotchHeaderPosition.resolved(headerNetworkPosition).effective(wrapsCamera: wraps) == position
-        let settingsHere = headerSettingsPosition != "hidden"
-            && NotchHeaderPosition.resolved(headerSettingsPosition).effective(wrapsCamera: wraps) == position
-        if networkHere || settingsHere {
+        let configuration = NotchHeaderConfiguration.decoded(headerLayoutData) ?? .stored()
+        let buttons = configuration.buttons.filter {
+            $0.position.effective(wrapsCamera: wraps) == position && $0.action?.isAvailable() == true
+        }
+        if !buttons.isEmpty {
             HStack(spacing: 6) {
-                if networkHere { NotchNetworkToggle(service: service, compact: compact) }
-                if settingsHere {
-                    NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
-                        .accessibilityIdentifier("notch.header.settings")
+                ForEach(buttons) { button in
+                    NotchHeaderShortcutView(button: button, service: service, compact: compact)
                 }
             }.fixedSize(horizontal: true, vertical: false)
         }

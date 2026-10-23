@@ -1362,13 +1362,14 @@ enum NotchQuickAccessSide: String, CaseIterable, Codable {
 }
 
 enum NotchQuickAction: Hashable, Identifiable {
-    case explore, settings, pin, module(NotchModule), control(NotchControlItem)
+    case explore, settings, pin, networkReadout, module(NotchModule), control(NotchControlItem)
 
     var id: String {
         switch self {
         case .explore: return "explore"
         case .settings: return "settings"
         case .pin: return "pin"
+        case .networkReadout: return "networkReadout"
         case .module(let module): return module.rawValue
         case .control(let item): return "control." + item.rawValue
         }
@@ -1379,6 +1380,7 @@ enum NotchQuickAction: Hashable, Identifiable {
         case "explore": self = .explore
         case "settings": self = .settings
         case "pin": self = .pin
+        case "networkReadout": self = .networkReadout
         default:
             if id.hasPrefix("control."), let item = NotchControlItem(rawValue: String(id.dropFirst(8))) {
                 self = .control(item)
@@ -1388,12 +1390,13 @@ enum NotchQuickAction: Hashable, Identifiable {
     }
 
     static var optionalActions: [Self] {
-        [.explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
+        [.explore, .settings, .pin, .networkReadout] + NotchModule.allCases.map(Self.module)
             + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
     }
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
         switch self {
+        case .networkReadout: return AppFeature.monitorNetwork.isAvailable(in: defaults)
         case .module(let module): return NotchSupport.modules(in: defaults).contains(module)
         case .control(let item): return item.isAvailable(in: defaults)
         default: return true

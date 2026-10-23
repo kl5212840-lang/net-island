@@ -265,6 +265,7 @@ extension NotchQuickAction {
         case .explore: return "square.grid.2x2"
         case .settings: return "gearshape"
         case .pin: return "pin"
+        case .networkReadout: return "arrow.up.arrow.down.circle"
         case .module(let module): return module.symbol
         case .control(let item): return item.symbol
         }
@@ -275,6 +276,7 @@ extension NotchQuickAction {
         case .explore: return FeatureStrings.notch(l10n.language).sectionsTitle
         case .settings: return l10n.s.menuSettings
         case .pin: return FeatureStrings.notch(l10n.language).pin
+        case .networkReadout: return NotchNetworkStrings(l10n.language).title
         case .module(let module): return module.title(l10n.language)
         case .control(let item): return item.title(l10n)
         }

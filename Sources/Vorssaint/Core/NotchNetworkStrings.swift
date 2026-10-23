@@ -95,4 +95,7 @@ struct NotchNetworkStrings {
     var headerRightOuter: String { text("Right · Outer edge", "右侧外端", "右側外端") }
     var headerHint: String { text("Adds shortcuts inside the open island without moving its floating buttons. Camera clearance stays reserved. Crowded rows use icons first, then omit extra shortcuts. Pages with their own left header use the right side.", "在展开的岛内额外添加快捷图标，不改动原有悬浮按钮。自动预留刘海安全距离；空间不足时先简化为图标，再隐藏额外快捷项。自行布局左侧标题栏的分区会改用右侧。", "在展開的島內額外新增快捷圖示，不更動原有浮動按鈕。自動預留瀏海安全距離；空間不足時先簡化為圖示，再隱藏額外快捷項。自行配置左側標題列的分區會改用右側。") }
 
+    var cameraSafeArea: String { text("Camera safe area", "刘海安全区", "瀏海安全區") }
+    var headerEditorHint: String { text("Click a top-row + to add any available action. Click an icon to rename, replace or remove it; drag between top slots to swap positions. Camera space stays reserved; floating buttons are configured separately.", "点击顶部对应位置的＋可添加任意已启用的操作；点击图标可改名、替换或移除，拖动到另一顶部位置可交换。中间预留刘海安全区，原有悬浮按钮独立配置。", "點擊頂部對應位置的＋可新增任意已啟用的操作；點擊圖示可改名、替換或移除，拖曳到另一頂部位置可交換。中間預留瀏海安全區，原有浮動按鈕獨立設定。") }
+
 }

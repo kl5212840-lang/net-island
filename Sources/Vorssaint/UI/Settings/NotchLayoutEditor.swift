@@ -62,6 +62,8 @@ struct NotchLayoutEditor: View {
                         .scaleEffect(scale)
                         .frame(width: frame.width, height: frame.height)
                         .position(x: frame.midX, y: frame.midY)
+                    NotchHeaderEditor(island: frame, geometry: previewGeometry, scale: scale)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                     ForEach(NotchQuickAccessSide.allCases, id: \.self) { side in
                         let items = layout.buttons.filter { $0.side == side }
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, button in
@@ -124,17 +126,16 @@ struct NotchLayoutEditor: View {
                 }
                 .coordinateSpace(name: "island.editor")
             }
-            .frame(height: Self.canvasHeight)
+            .frame(height: max(240, actualHeight * Self.previewScale + 80))
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: layout)
-            Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
+            Text(editor.layoutHint + " " + NotchNetworkStrings(l10n.language).headerEditorHint).font(.callout).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    /// The preview keeps the island's real proportions at half size, so the
-    /// canvas fits the tallest custom island with its bottom drop zone below.
-    private static let previewScale: CGFloat = 0.5
-    private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
+    /// Zoom the proportional preview while keeping the existing floating
+    /// handles and the new top-row handles large enough to select.
+    private static let previewScale: CGFloat = 0.75
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
     /// The width the island opens the home page at, which the preview
     /// shows: a width set by hand, so the slider moves it, or under a preset
@@ -271,7 +272,6 @@ struct NotchLayoutEditor: View {
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
-        let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
         let controls = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
                                             shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
@@ -285,17 +285,7 @@ struct NotchLayoutEditor: View {
             VStack(spacing: NotchLayout.spacing) {
                 // The top row, around the camera, holds the levels, after the
                 // sections button when nothing floats for that.
-                NotchBandRow(band: band) {
-                    if band.sectionsButton {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.55))
-                            .frame(width: 28, height: 28)
-                    }
-                    NotchBandLevels(band: band, levels: bandLevels, side: .leading) { levelRow($0) }
-                } trailing: {
-                    NotchBandLevels(band: band, levels: bandLevels, side: .trailing) { levelRow($0) }
-                }
+                Color.clear.frame(height: band.height)
                 VStack(spacing: NotchLayout.rowSpacing) {
                     if items.isEmpty {
                         NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
@@ -381,7 +371,7 @@ struct NotchActionChooser: View {
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
                     }
                     group(editor.sectionActions, actions: [.explore, .settings] + NotchModule.allCases.map(NotchQuickAction.module))
-                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control))
+                    group(editor.quickActions, actions: [.networkReadout, .pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control))
                 }.padding(2)
             }.frame(height: 200)
         }.padding(title.isEmpty ? 0 : 16).frame(width: title.isEmpty ? nil : 340)

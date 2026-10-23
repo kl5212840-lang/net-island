@@ -1906,6 +1906,7 @@ final class NotchService: ObservableObject {
         switch action {
         case .explore: toggleSections()
         case .settings: openSettings()
+        case .networkReadout: toggleNetworkReadout()
         case .pin: pinned.toggle()
         case .module(let module): select(module)
         case .control(let item):

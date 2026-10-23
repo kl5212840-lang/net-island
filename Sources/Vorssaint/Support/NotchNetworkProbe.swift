@@ -108,6 +108,7 @@ enum NotchNetworkProbe {
             saved.presets = [NotchNetworkPreset.capture(name: language == "zh-Hans" ? "日常 · 柔和配色" : "Everyday · Soft colors"),
                              NotchNetworkPreset.capture(name: language == "zh-Hans" ? "下载任务 · 大字清晰精准读数" : "Download sessions · Large precise readings")]
             overrides[DefaultsKey.notchNetworkPresets] = saved.encoded!
+            overrides[DefaultsKey.notchHeaderLayout] = Data()
             overrides[DefaultsKey.notchHeaderNetworkIconOnly] = true
             overrides[DefaultsKey.notchHeaderSettingsPosition] = "rightOuter"
             overrides[DefaultsKey.notchHeaderNetworkPosition] = "leftOuter"
@@ -117,8 +118,12 @@ enum NotchNetworkProbe {
                 capture(AnyView(NotchNetworkSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
                         size: CGSize(width: width, height: 1000), name: "named-presets-\(language)-\(Int(width))", output: output, failures: &failures)
             }
-            capture(AnyView(NotchHeaderSettings().padding(20).background(Color(nsColor: .windowBackgroundColor))),
-                    size: CGSize(width: 460, height: 430), name: "header-settings-\(language)", output: output, failures: &failures)
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchLayoutEditor(configuration: .constant(.initial), size: .constant("compact"),
+                    width: .constant(560), height: .constant(300), editContents: {}).padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 620),
+                        name: "header-editor-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
             for position in NotchHeaderPosition.allCases {
                 overrides[DefaultsKey.notchHeaderSettingsPosition] = position.rawValue
                 overrides[DefaultsKey.notchHeaderNetworkPosition] = position.rawValue
@@ -133,6 +138,19 @@ enum NotchNetworkProbe {
                             name: "header-\(position.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
                 }
             }
+            var allActions = NotchHeaderConfiguration()
+            allActions.set(.networkReadout, at: .leftOuter)
+            allActions.set(.module(.system), at: .leftInner)
+            allActions.set(.pin, at: .rightInner)
+            allActions.set(.settings, at: .rightOuter)
+            overrides[DefaultsKey.notchHeaderLayout] = allActions.encoded
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            let fullGeometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                                             layout: .custom, customWidth: 600, customHeight: 300)
+            NotchService.shared.prepareNetworkProbe(geometry: fullGeometry, expanded: true, selected: .system)
+            capture(AnyView(NotchView(service: .shared).background(.black)), size: NotchService.shared.surfaceSize,
+                    name: "header-all-actions-\(language)", output: output, failures: &failures, island: true)
+            overrides[DefaultsKey.notchHeaderLayout] = Data()
             overrides[DefaultsKey.notchHeaderSettingsPosition] = "rightOuter"
             overrides[DefaultsKey.notchHeaderNetworkPosition] = "leftOuter"
             overrides[DefaultsKey.notchHeaderNetworkIconOnly] = false

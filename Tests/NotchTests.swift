@@ -124,6 +124,36 @@ enum NotchTests {
         library.presets = [original, original]
         suite.expect(!NotchNetworkPresetLibrary(data: library.encoded!).readable,
                      "duplicate identities in imported presets do not reach the named list")
+        defaults.set("rightOuter", forKey: DefaultsKey.notchHeaderSettingsPosition)
+        let floating = NotchQuickAccessConfiguration.stored(in: defaults)
+        var header = NotchHeaderConfiguration.stored(in: defaults)
+        suite.expect(header == NotchHeaderConfiguration.stored(in: defaults),
+                     "unsaved legacy header anchors retain stable identities across redraws and drag start/end")
+        suite.expect(header.buttons.count == 2 && header.button(at: .leftOuter)?.action == .networkReadout,
+                     "legacy header choices carry into the direct editor without rewriting floating buttons")
+        header.set(.module(.system), at: .leftInner)
+        header.set(.control(.microphone), at: .rightInner)
+        let movingID = header.button(at: .leftInner)!.id
+        header.move(movingID, to: .rightInner)
+        suite.expect(header.button(at: .rightInner)?.id == movingID
+                     && header.button(at: .leftInner)?.action == .control(.microphone),
+                     "dragging to an occupied top anchor swaps the actions without losing either identity")
+        defaults.set(header.encoded, forKey: DefaultsKey.notchHeaderLayout)
+        suite.expect(NotchHeaderConfiguration.stored(in: defaults) == header
+                     && NotchQuickAccessConfiguration.stored(in: defaults) == floating,
+                     "the complete top action layout survives persistence independently from all floating shortcuts")
+        header.buttons = []
+        defaults.set(header.encoded, forKey: DefaultsKey.notchHeaderLayout)
+        suite.expect(NotchHeaderConfiguration.stored(in: defaults).buttons.isEmpty,
+                     "removing all top actions persists an explicit empty layout instead of restoring defaults")
+        header.set(.settings, at: .leftOuter)
+        header.buttons.append(.init(actionID: "unknown", position: .rightOuter))
+        header.buttons.append(.init(actionID: "pin", position: .leftOuter))
+        suite.expect(header.sanitized().buttons.count == 1,
+                     "unknown restored actions and duplicate anchors cannot overlap the safe header positions")
+        suite.expect(NotchQuickAction(id: "networkReadout") == .networkReadout
+                     && NotchQuickAction.optionalActions.contains(.networkReadout),
+                     "the network switch participates in the same complete chooser as every other shortcut")
         for position in NotchHeaderPosition.allCases {
             suite.expect(position.effective(wrapsCamera: true) == (position == .leftOuter ? .rightOuter : position == .leftInner ? .rightInner : position),
                          "page-owned leading headers redirect shortcuts to the safe trailing side")
@@ -2498,12 +2528,12 @@ enum NotchTests {
                      "launch asks the brightness service whether this Mac has a keyboard light")
         let controlsView = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchControlsView.swift", encoding: .utf8)) ?? ""
         let layoutEditor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
-        suite.expect(["NotchBandLevels(band: band, levels: bandLevels, side: .leading)",
-                      "NotchBandLevels(band: band, levels: bandLevels, side: .trailing)",
-                      "NotchLevelRow(levels: belowLevels)"].allSatisfy { layout in
-                         controlsView.contains(layout) && layoutEditor.contains(layout)
-                     },
-                     "the island and its Settings preview lay the levels out in the top row the same way")
+        suite.expect(controlsView.contains("NotchBandLevels(band: band, levels: bandLevels, side: .leading)")
+                     && controlsView.contains("NotchBandLevels(band: band, levels: bandLevels, side: .trailing)")
+                     && controlsView.contains("NotchLevelRow(levels: belowLevels)")
+                     && layoutEditor.contains("NotchHeaderEditor(island: frame, geometry: previewGeometry, scale: scale)")
+                     && layoutEditor.contains("NotchLevelRow(levels: belowLevels)"),
+                     "the live Controls page retains its levels while Settings exposes editable top anchors and the remaining preview levels")
         defaults.set(savedHiddenControls, forKey: DefaultsKey.notchHiddenControls)
         defaults.set(savedBrightness, forKey: AppFeature.brightness.availabilityKey)
         suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
