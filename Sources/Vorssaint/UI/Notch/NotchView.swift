@@ -467,7 +467,7 @@ struct NotchView: View {
         if !buttons.isEmpty {
             HStack(spacing: compact ? 4 : 6) {
                 ForEach(buttons) { button in
-                    NotchHeaderShortcutView(button: button, service: service, compact: compact)
+                    NotchHeaderShortcutView(button: button, service: service, compact: compact, leadingSide: leading)
                 }
             }.fixedSize(horizontal: true, vertical: false)
         }

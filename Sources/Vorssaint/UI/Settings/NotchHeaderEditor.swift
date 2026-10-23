@@ -70,7 +70,7 @@ struct NotchHeaderEditor: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(position.title(text) + ": " + title)
+        .notchFastHelp(position.title(text) + ": " + title, leadingSide: position.leading)
         .accessibilityLabel((button == nil ? editor.addButton : editor.editButton) + ", " + text.headerTitle + ", " + position.title(text) + ", " + title)
         .accessibilityIdentifier("notch.editor.header." + position.rawValue)
         .offset(dragging == button?.id && dragging != nil ? translation : .zero)

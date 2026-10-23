@@ -88,6 +88,7 @@ struct NotchNetworkToggle: View {
     @AppStorage(DefaultsKey.notchHeaderNetworkIconOnly) private var iconOnly = false
     var compact = false
     var customTitle = ""
+    var leadingSide = true
     private var isCompact: Bool { compact || iconOnly }
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var isOn: Bool { idle == "network" && !paused && AppFeature.monitorNetwork.isAvailable }
@@ -107,7 +108,8 @@ struct NotchNetworkToggle: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 13, lifts: false))
         .disabled(!AppFeature.monitorNetwork.isAvailable)
-        .help(customTitle.isEmpty ? text.quickHint : customTitle + " · " + text.quickHint)
+        .notchFastHelp((customTitle.isEmpty ? text.title : customTitle) + " · " + (isOn ? text.on : text.off), leadingSide: leadingSide)
+        .accessibilityHint(text.quickHint)
         .accessibilityLabel(customTitle.isEmpty ? text.title : customTitle)
         .accessibilityValue(isOn ? text.on : text.off)
         .accessibilityIdentifier("notch.network.toggle")

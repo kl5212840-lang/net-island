@@ -7,6 +7,7 @@ struct NotchHeaderShortcutView: View {
     let button: NotchHeaderButton
     @ObservedObject var service: NotchService
     var compact = false
+    var leadingSide = true
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var microphone = MicMuteService.shared
@@ -15,7 +16,7 @@ struct NotchHeaderShortcutView: View {
     var body: some View {
         if let action = button.action {
             if action == .networkReadout {
-                NotchNetworkToggle(service: service, compact: compact, customTitle: button.label)
+                NotchNetworkToggle(service: service, compact: compact, customTitle: button.label, leadingSide: leadingSide)
             } else {
                 let selected = isSelected(action)
                 Button { service.activateQuickAction(action) } label: {
@@ -26,7 +27,7 @@ struct NotchHeaderShortcutView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 9, lifts: false))
-                .help(title(action))
+                .notchFastHelp(title(action), leadingSide: leadingSide)
                 .accessibilityLabel(title(action))
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 .accessibilityIdentifier("notch.header." + action.id)
