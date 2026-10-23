@@ -217,12 +217,30 @@ enum NotchNetworkProbe {
         window.contentView = host
         host.frame = CGRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
+        if island {
+            // A volatile preference does not reliably update AppKit's cached
+            // preferred style. Exercise the actual native legacy-gutter case.
+            func forceLegacy(_ view: NSView) {
+                if let scroll = view as? NSScrollView {
+                    scroll.scrollerStyle = .legacy
+                    scroll.hasVerticalScroller = true
+                    scroll.tile()
+                }
+                for child in view.subviews { forceLegacy(child) }
+            }
+            forceLegacy(host)
+            host.needsLayout = true
+        }
         RunLoop.current.run(until: Date().addingTimeInterval(0.15))
         host.layoutSubtreeIfNeeded()
         if island {
             func inspect(_ view: NSView) {
                 if let scroll = view as? NSScrollView, scroll.hasVerticalScroller || scroll.hasHorizontalScroller {
                     failures.append("\(name) exposes a native scroller")
+                }
+                if let scroll = view as? NSScrollView,
+                   scroll.scrollerStyle != .overlay || abs(scroll.contentView.frame.width - scroll.bounds.width) > 1 {
+                    failures.append("\(name) retains an asymmetric native scrollbar gutter")
                 }
                 for child in view.subviews { inspect(child) }
             }

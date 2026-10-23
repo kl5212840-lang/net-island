@@ -1811,8 +1811,13 @@ final class NotchHostingView: NSHostingView<AnyView> {
     /// choice on its native scroll views as they lay out; scrolling survives.
     private func suppressScrollers(in view: NSView) {
         if let scroll = view as? NSScrollView {
+            // A hidden legacy scroller can still reserve a side gutter.
+            // Overlay layout keeps the content centred even with Always set.
+            let retile = scroll.scrollerStyle != .overlay
+            if retile { scroll.scrollerStyle = .overlay }
             if scroll.hasVerticalScroller { scroll.hasVerticalScroller = false }
             if scroll.hasHorizontalScroller { scroll.hasHorizontalScroller = false }
+            if retile { scroll.tile() }
         }
         for child in view.subviews { suppressScrollers(in: child) }
     }
