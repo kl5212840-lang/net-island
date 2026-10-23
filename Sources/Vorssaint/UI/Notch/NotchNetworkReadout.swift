@@ -54,8 +54,8 @@ struct NotchNetworkReadout: View {
     }
 }
 
-/// Only the readings observe the snapshot, so a sample does not resize or
-/// animate the island. The persisted unit follows the existing Network panel.
+/// Readings observe samples directly; the service grows a deliberately narrow
+/// island when necessary and delays shrinking to avoid per-sample jitter.
 struct NotchNetworkWing: View {
     var upload = false
     var leadingSide = true

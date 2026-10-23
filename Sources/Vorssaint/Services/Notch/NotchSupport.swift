@@ -610,8 +610,8 @@ enum NotchLayout {
     /// card, then closes the rows of a rail that would scroll, before it
     /// drops a row.
     static func controls(hasCards: Bool, levelRow: Bool = false, shortcutCount: Int,
-                         width: CGFloat, height: CGFloat) -> NotchControlsLayout {
-        let levels = levelRow ? levelRowHeight : 0
+                         width: CGFloat, height: CGFloat, bodyLevelHeight: CGFloat? = nil) -> NotchControlsLayout {
+        let levels = levelRow ? (bodyLevelHeight ?? levelRowHeight) : 0
         guard hasCards || shortcutCount > 0 else { return NotchControlsLayout(levelRow: levels, cardRow: 0, shortcutRows: 0) }
         let budget = height - (levels > 0 ? levels + rowSpacing : 0)
         var rows = 0, rowGap = shortcutSpacing
@@ -2226,7 +2226,11 @@ struct NotchNoticeWings: Equatable {
 struct NotchGeometry: Equatable {
     let screen: CGRect
     var networkStyle = NotchNetworkStyle()
+    var networkRequiredWidth: CGFloat = 0
+    var resolvedNetworkWidth: CGFloat { max(networkStyle.wingWidth, networkRequiredWidth) }
     var systemStyle = NotchSystemStyle()
+    var pageAppearance = NotchPageAppearance()
+    var headerHasCustomButtons = false
     var systemLayout = NotchSystemLayout.original
     var systemConfiguration = NotchSystemConfiguration()
     var systemNavigationInset: CGFloat = 0
@@ -2415,14 +2419,14 @@ struct NotchGeometry: Equatable {
     /// leave too little room, omit both readings rather than clipping one.
     func restingWingWidth(for content: NotchIdleContent) -> CGFloat {
         guard content == .network else { return restingWingWidth }
-        return (compactSideRoom ?? 0) >= networkStyle.wingWidth ? networkStyle.wingWidth : 0
+        return (compactSideRoom ?? 0) >= resolvedNetworkWidth ? resolvedNetworkWidth : 0
     }
     var collapsed: CGSize {
         CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: stripHeight)
     }
     func restingSize(showsContent: Bool, content: NotchIdleContent = .none) -> CGSize {
         if content == .network, floats {
-            let width = networkStyle.wingWidth * 2 + NotchCapsuleLayout.side(self) * 2 + NotchCapsuleLayout.endPadding * 2
+            let width = resolvedNetworkWidth * 2 + NotchCapsuleLayout.side(self) * 2 + NotchCapsuleLayout.endPadding * 2
             return CGSize(width: min(screen.width - 24, width), height: stripHeight)
         }
         if showsContent {
@@ -2713,19 +2717,16 @@ struct NotchGeometry: Equatable {
     }
 
     func toolRows(count: Int) -> Int {
-        NotchLayout.railRows(count: count,
-                             perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing),
-                             rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: contentBudget)
+        pageAppearance.toolsRows(count: count, width: max(0, contentWidth - systemNavigationInset * 2), height: contentBudget)
     }
 
-    /// The arrows walk the tiles the way the rail draws them: reading order
-    /// while every column fits, closing its gaps if it must, the columns it
-    /// fills once it scrolls.
     func toolFlow(count: Int) -> QuickToolsSupport.GridFlow {
+        let width = max(0, contentWidth - systemNavigationInset * 2)
+        if pageAppearance.toolsColumns > 0 { return .rows(columns: pageAppearance.toolsCapacity(width: width)) }
         let rows = toolRows(count: count)
         let columns = NotchLayout.railColumns(count: count, rows: rows)
-        return NotchLayout.railGap(columns: columns, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing,
-                                   least: NotchLayout.toolLeastSpacing, width: contentWidth) != nil
+        return NotchLayout.railGap(columns: columns, itemWidth: pageAppearance.toolsWidth, spacing: pageAppearance.toolsGap,
+                                  least: min(pageAppearance.toolsGap, NotchLayout.toolLeastSpacing), width: width - pageAppearance.toolsPadding * 2) != nil
             ? .rows(columns: columns) : .columns(rows: rows)
     }
 
@@ -2764,11 +2765,14 @@ struct NotchGeometry: Equatable {
                 // from the cards and the rail; a custom height holds them all.
                 let levels = max(0, sliderCount)
                 let band = NotchBand(geometry: self, contentWidth: contentWidth)
-                let levelRow = NotchLayout.bandLevelCount(levels, band: band) < levels
-                let room = budget + (levelRow && layout != .custom ? NotchLayout.levelRowHeight + NotchLayout.rowSpacing : 0)
-                let home = NotchLayout.controls(hasCards: controlsHaveMusic, levelRow: levelRow,
-                                                shortcutCount: max(0, shortcutCount), width: contentWidth, height: room)
+                let held = pageAppearance.bandLevels(levels, band: band, headerHasButtons: headerHasCustomButtons)
+                let levelRow = held < levels
+                let bodyLevelsHeight = pageAppearance.controlsHeight(levels: levels - held)
+                let room = budget + (levelRow && layout != .custom ? bodyLevelsHeight + NotchLayout.rowSpacing : 0)
+                var home = NotchLayout.controls(hasCards: controlsHaveMusic, levelRow: levelRow,
+                                                shortcutCount: max(0, shortcutCount), width: contentWidth, height: room, bodyLevelHeight: bodyLevelsHeight)
                 let empty = !controlsHaveMusic && sliderCount <= 0 && shortcutCount <= 0
+                if levelRow { home.levelRow = bodyLevelsHeight }
                 contentHeight = min(room, empty ? NotchLayout.emptyHeight : home.height)
             case .music:
                 let player = NotchLayout.musicPlayerHeight(band: musicBandHeight, playing: musicHasContent)
@@ -2781,7 +2785,7 @@ struct NotchGeometry: Equatable {
             case .tools:
                 guard let toolCount else { contentHeight = pageBudget; break }
                 contentHeight = min(budget, toolCount == 0 ? NotchLayout.emptyHeight
-                    : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
+                    : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: pageAppearance.toolsHeight, spacing: pageAppearance.toolsRowGap) + pageAppearance.toolsPadding * 2)
             case .timer:
                 contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, height: budget))
             case .agents:

@@ -106,6 +106,13 @@ final class QuickLauncherService: ObservableObject {
         return orderedItems.filter { !hidden.contains($0.rawValue) }
     }
 
+    var islandItems: [QuickLauncherItem] {
+        let appearance = NotchPageAppearance.stored()
+        guard let saved = appearance.toolsItems else { return visibleItems }
+        var seen = Set<QuickLauncherItem>()
+        return saved.compactMap(QuickLauncherItem.init(rawValue:)).filter { seen.insert($0).inserted && $0.feature.isAvailable }
+    }
+
     var hiddenItems: [QuickLauncherItem] {
         let hidden = QuickToolsSupport.hiddenIDs(from: hiddenItemsRaw)
         return orderedItems.filter { hidden.contains($0.rawValue) }
@@ -240,19 +247,21 @@ final class QuickLauncherService: ObservableObject {
 
     // MARK: - Actions
 
-    func activateSelection() {
+    func activateSelection(items: [QuickLauncherItem]? = nil) {
+        let visibleItems = items ?? self.visibleItems
         guard let selectedIndex, visibleItems.indices.contains(selectedIndex) else { return }
         run(visibleItems[selectedIndex])
     }
 
-    func activate(at index: Int) {
+    func activate(at index: Int, items: [QuickLauncherItem]? = nil) {
+        let visibleItems = items ?? self.visibleItems
         guard visibleItems.indices.contains(index) else { return }
         run(visibleItems[index])
     }
 
     func moveSelection(_ direction: QuickToolsSupport.GridDirection,
-                       flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) {
-        let count = visibleItems.count
+                       flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns), items: [QuickLauncherItem]? = nil) {
+        let count = (items ?? visibleItems).count
         guard count > 0 else { return }
         selectedIndex = QuickToolsSupport.gridIndex(after: selectedIndex ?? 0,
                                                     count: count,
@@ -263,8 +272,8 @@ final class QuickLauncherService: ObservableObject {
 
     /// The pointer's selection. The hovered tile is already in view, so the
     /// rail stays where it is.
-    func select(_ item: QuickLauncherItem) {
-        selectedIndex = visibleItems.firstIndex(of: item)
+    func select(_ item: QuickLauncherItem, items: [QuickLauncherItem]? = nil) {
+        selectedIndex = (items ?? visibleItems).firstIndex(of: item)
         keyboardIndex = nil
     }
 
@@ -383,7 +392,8 @@ final class QuickLauncherService: ObservableObject {
     // MARK: - Monitors
 
     func handlePanelKey(_ event: NSEvent,
-                        flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) -> NSEvent? {
+                        flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns),
+                        items: [QuickLauncherItem]? = nil) -> NSEvent? {
         if event.keyCode == UInt16(kVK_Escape) {
             // While an input method is composing in a utility's field, Esc
             // belongs to it and drops the candidate; the launcher takes the
@@ -406,23 +416,23 @@ final class QuickLauncherService: ObservableObject {
               event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
         switch Int(event.keyCode) {
         case kVK_Return, kVK_ANSI_KeypadEnter:
-            activateSelection()
+            activateSelection(items: items)
             return nil
         case kVK_LeftArrow:
-            moveSelection(.left, flow: flow)
+            moveSelection(.left, flow: flow, items: items)
             return nil
         case kVK_RightArrow:
-            moveSelection(.right, flow: flow)
+            moveSelection(.right, flow: flow, items: items)
             return nil
         case kVK_UpArrow:
-            moveSelection(.up, flow: flow)
+            moveSelection(.up, flow: flow, items: items)
             return nil
         case kVK_DownArrow:
-            moveSelection(.down, flow: flow)
+            moveSelection(.down, flow: flow, items: items)
             return nil
         default:
             if let index = Self.digitIndex(for: event.keyCode) {
-                activate(at: index)
+                activate(at: index, items: items)
                 return nil
             }
             return event

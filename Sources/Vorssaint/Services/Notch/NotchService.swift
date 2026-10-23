@@ -447,12 +447,15 @@ final class NotchService: ObservableObject {
     @Published private(set) var networkTrafficVisible = true
     private var networkActivity = NotchNetworkActivity()
     private var networkPolicySignature = ""
+    private var networkWidthHold = NotchNetworkWidthHold()
 
 #if VORSSAINT_DEVELOPMENT
     /// Capture the real view hierarchy without starting application services.
     func prepareNetworkProbe(geometry: NotchGeometry, expanded: Bool, selected: NotchModule = .tools) {
         var configured = geometry
         configured.systemStyle = .stored()
+        configured.pageAppearance = .stored()
+        configured.headerHasCustomButtons = !NotchHeaderConfiguration.stored().buttons.isEmpty
         configured.systemLayout = .resolved(UserDefaults.standard.string(forKey: DefaultsKey.notchSystemLayout) ?? "original")
         configured.systemConfiguration = .stored()
         self.geometry = configured
@@ -473,22 +476,32 @@ final class NotchService: ObservableObject {
         let signature = [String(NotchNetworkSupport.isEnabled()),
                          String(defaults.bool(forKey: DefaultsKey.notchNetworkAutoHide)),
                          String(defaults.double(forKey: DefaultsKey.notchNetworkThreshold)),
-                         String(defaults.double(forKey: DefaultsKey.notchNetworkHideDelay))].joined(separator: ":")
+                         String(defaults.double(forKey: DefaultsKey.notchNetworkHideDelay)),
+                         String(describing: NotchNetworkStyle.stored()), defaults.string(forKey: DefaultsKey.networkSpeedUnit) ?? "bytes"].joined(separator: ":")
         guard signature != networkPolicySignature else { return }
         networkPolicySignature = signature
         networkActivity = NotchNetworkActivity()
+        networkWidthHold = NotchNetworkWidthHold()
         networkTrafficVisible = true
     }
 
     private func receiveNetworkSample(_ snapshot: SystemSnapshot) {
-        guard running, !suspended, NotchNetworkSupport.isEnabled(), UserDefaults.standard.bool(forKey: DefaultsKey.notchNetworkAutoHide) else { return }
-        let visible = networkActivity.update(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
-                                             threshold: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkThreshold),
-                                             delay: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkHideDelay),
-                                             now: ProcessInfo.processInfo.systemUptime)
-        guard visible != networkTrafficVisible else { return }
-        networkTrafficVisible = visible
-        refreshPresentation()
+        guard running, !suspended, NotchNetworkSupport.isEnabled() else { return }
+        var needsRefresh = false
+        let required = geometry.networkStyle.requiredWidth(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
+            inBits: UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", curveInset: geometry.floats ? 8 : 16)
+        let held = networkWidthHold.update(required: required, now: ProcessInfo.processInfo.systemUptime)
+        if max(geometry.networkStyle.wingWidth, held) != geometry.resolvedNetworkWidth {
+            var next = geometry; next.networkRequiredWidth = held; geometry = next
+            needsRefresh = true
+        }
+        if UserDefaults.standard.bool(forKey: DefaultsKey.notchNetworkAutoHide) {
+            let visible = networkActivity.update(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
+                threshold: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkThreshold),
+                delay: UserDefaults.standard.double(forKey: DefaultsKey.notchNetworkHideDelay), now: ProcessInfo.processInfo.systemUptime)
+            if visible != networkTrafficVisible { networkTrafficVisible = visible; needsRefresh = true }
+        }
+        if needsRefresh { refreshPresentation() }
     }
 
     var idleContent: NotchIdleContent {
@@ -837,7 +850,7 @@ final class NotchService: ObservableObject {
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
-                        toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
+                        toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.islandItems.count,
                         capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
     }
 
@@ -845,7 +858,7 @@ final class NotchService: ObservableObject {
     /// detail, app panel, capture or media editor in front of the page.
     func previewSize(for module: NotchModule) -> CGSize {
         pageSize(in: previewGeometry(for: module), module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
-                 fileMediaHeight: nil, toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
+                 fileMediaHeight: nil, toolCount: QuickLauncherService.shared.islandItems.count, capturePreviewHeight: nil)
     }
 
     /// The island around a previewed section, with the top row its page has.
@@ -854,7 +867,7 @@ final class NotchService: ObservableObject {
     func previewGeometry(for module: NotchModule) -> NotchGeometry {
         var result = geometry.page(module, controls: NotchSupport.controls(),
                                    sectionsButton: !NotchQuickAccessConfiguration.current().actions.contains(.explore))
-        result.systemNavigationInset = modules.count > 1 ? 16 : 0
+        result.systemNavigationInset = modules.count > 1 ? 16 + result.pageAppearance.navigation(module: module.rawValue, fallback: "top").margin : 0
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         return result
     }
@@ -910,7 +923,7 @@ final class NotchService: ObservableObject {
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
-        result.systemNavigationInset = modules.count > 1 ? 16 : 0
+        result.systemNavigationInset = modules.count > 1 ? 16 + result.pageAppearance.navigation(module: selected.rawValue, fallback: "top").margin : 0
         // Capture editing has a full toolbar whose actions must stay reachable.
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
@@ -3534,7 +3547,13 @@ final class NotchService: ObservableObject {
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                              barEdge: 1 / max(1, screen.backingScaleFactor))
         result.networkStyle = .stored()
+        let snapshot = SystemMonitor.shared.snapshot
+        result.networkRequiredWidth = max(networkWidthHold.width, result.networkStyle.requiredWidth(
+            download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
+            inBits: UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", curveInset: result.floats ? 8 : 16))
         result.systemStyle = .stored()
+        result.pageAppearance = .stored()
+        result.headerHasCustomButtons = !NotchHeaderConfiguration.stored().buttons.isEmpty
         result.systemLayout = .resolved(UserDefaults.standard.string(forKey: DefaultsKey.notchSystemLayout) ?? "original")
         result.systemConfiguration = .stored()
         return result
@@ -3796,8 +3815,8 @@ final class NotchService: ObservableObject {
                 // grid keeps its own rows.
                 let flow: QuickToolsSupport.GridFlow = launcher.isEditing
                     ? .rows(columns: NotchSupport.toolColumns)
-                    : self.expandedGeometry.toolFlow(count: launcher.visibleItems.count)
-                return launcher.handlePanelKey(event, flow: flow)
+                    : self.expandedGeometry.toolFlow(count: launcher.islandItems.count)
+                return launcher.handlePanelKey(event, flow: flow, items: launcher.islandItems)
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
                 // A level being typed in the mixer cancels on Escape by

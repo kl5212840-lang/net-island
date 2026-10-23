@@ -17,6 +17,8 @@ struct NotchSystemView: View {
     @AppStorage(DefaultsKey.notchSystemVerticalSpacing) private var verticalSpacing = 10.0
     @AppStorage(DefaultsKey.notchSystemMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.notchSystemHiddenMetrics) private var hiddenMetrics = ""
+    @AppStorage(NotchPageAppearance.storageKey) private var appearanceData = Data()
+    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var style: NotchSystemStyle {
@@ -155,19 +157,19 @@ struct NotchSystemView: View {
         Button { select(card.kind) } label: {
             VStack(alignment: .leading, spacing: 6 * style.scale) {
                 Label(card.title, systemImage: card.symbol)
-                    .font(.system(size: 10 * style.scale, weight: .medium))
+                    .font(.system(size: 10 * style.scale * appearance.systemFontScale, weight: .medium))
                     .foregroundStyle(.secondary).lineLimit(1)
                 Text(card.value ?? "…")
-                    .font(.system(size: (card.detail == nil ? 22 : 15) * style.scale, weight: .medium, design: .rounded))
+                    .font(.system(size: (card.detail == nil ? 22 : 15) * style.scale * appearance.systemFontScale, weight: .medium, design: .rounded))
                     .monospacedDigit().contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.75)
                     .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: card.value)
                 if let detail = card.detail {
-                    Text(detail).font(.system(size: 11 * style.scale)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
-                } else if let level = card.level {
-                    NotchMeter(value: level, height: 5 * style.scale, tint: card.wantsAttention ? .orange : .white)
+                    Text(detail).font(.system(size: 11 * style.scale * appearance.systemFontScale)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                } else if let level = card.level, appearance.systemMeters {
+                    NotchMeter(value: level, height: 5 * style.scale, tint: meterTint(attention: card.wantsAttention))
                 }
             }
-            .padding(.horizontal, 12 * style.scale)
+            .padding(.horizontal, appearance.systemPadding * style.scale)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: style.cardHeight)
             .modifier(NotchControlSurface(cornerRadius: 18 * style.scale))
@@ -178,6 +180,20 @@ struct NotchSystemView: View {
         .accessibilityAction { select(card.kind) }
         .accessibilityLabel(card.title)
         .accessibilityValue([card.value, card.detail].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    private func meterTint(attention: Bool) -> Color {
+        // Warnings retain their semantic contrast regardless of decoration.
+        if attention { return .orange }
+        switch appearance.systemTint {
+        case "accent": return .accentColor
+        case "cyan": return .cyan
+        case "green": return .green
+        case "custom":
+            let rgb = MenuBarUsageBarSupport.rgb(for: appearance.values["system.color"] ?? "73F2FF", fallback: "73F2FF")
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        default: return .white
+        }
     }
 
     private func percent(_ value: Double?) -> String? {

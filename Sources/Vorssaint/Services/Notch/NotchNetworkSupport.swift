@@ -3,6 +3,7 @@
 
 import Foundation
 import CoreGraphics
+import AppKit
 
 struct NotchNetworkStyle: Equatable, Codable {
     var fontSize: CGFloat = 10
@@ -32,7 +33,7 @@ struct NotchNetworkStyle: Equatable, Codable {
         self.innerSpacing = Self.clamp(innerSpacing, 0...24, fallback: 0)
         self.wingWidth = max(Self.minimumWidth(fontSize: self.fontSize, fullUnits: fullUnits, decimals: decimals, arrowGap: arrowGap,
                                                outerSpacing: Double(self.outerSpacing), innerSpacing: Double(self.innerSpacing)),
-                             Self.clamp(wingWidth, 48...240, fallback: 72).rounded())
+                             Self.clamp(wingWidth, 24...240, fallback: 72).rounded())
         self.verticalOffset = Self.clamp(verticalOffset, -3...3, fallback: 0).rounded()
         self.uploadOnLeft = uploadOnLeft
         self.fullUnits = fullUnits
@@ -49,9 +50,21 @@ struct NotchNetworkStyle: Equatable, Codable {
 
     static func minimumWidth(fontSize: CGFloat, fullUnits: Bool = false, decimals: Int = 1, arrowGap: Double = 3,
                              outerSpacing: Double = 0, innerSpacing: Double = 0) -> CGFloat {
-        let digits = CGFloat(min(2, max(0, decimals)) - 1)
-        return ceil(fontSize * (fullUnits ? 8 + digits * 0.6 : 4.9) + 19 + clamp(arrowGap, 2...10, fallback: 3) - 3
-                    + clamp(outerSpacing, 0...24, fallback: 0) + clamp(innerSpacing, 0...24, fallback: 0))
+        // The user's lower bound needs room for the shortest legal reading,
+        // not the longest possible transfer at every speed and unit.
+        let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
+        let reading = fullUnits ? "0 B/s" : "0B"
+        return ceil((reading as NSString).size(withAttributes: [.font: font]).width
+            + max(8, fontSize - 1) + clamp(arrowGap, 2...10, fallback: 3) + 16
+            + clamp(outerSpacing, 0...24, fallback: 0) + clamp(innerSpacing, 0...24, fallback: 0))
+    }
+
+    func requiredWidth(download: Double?, upload: Double?, inBits: Bool, curveInset: CGFloat = 16) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize,
+            weight: weight == "bold" ? .bold : weight == "regular" ? .regular : .medium)
+        let readings = [download, upload].map { NotchNetworkFormat.reading($0, inBits: inBits, fullUnits: fullUnits, decimals: decimals) }
+        let text = readings.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
+        return ceil(text + max(8, fontSize - 1) + arrowGap + 2 + curveInset + outerSpacing + innerSpacing)
     }
 
     func alignment(onLeadingSide leading: Bool) -> String {
@@ -164,5 +177,25 @@ enum NotchNetworkFormat {
             index += 1
         }
         return String(format: "%.*f %@", locale: locale, index == 0 ? 0 : decimals, value, units[index])
+    }
+}
+
+/// Grow before text can clip; shrink only after fifteen seconds of smaller
+/// readings. Both directions share the held maximum, preserving symmetry.
+struct NotchNetworkWidthHold {
+    private(set) var width: CGFloat = 0
+    private var smallerSince: TimeInterval?
+    private var candidate: CGFloat = 0
+    mutating func update(required: CGFloat, now: TimeInterval) -> CGFloat {
+        guard required.isFinite, required >= 0, now.isFinite else { return width }
+        let required = ceil(required / 2) * 2
+        if required >= width || smallerSince.map({ now < $0 }) == true {
+            width = required; smallerSince = nil; candidate = 0
+        } else {
+            if smallerSince == nil { smallerSince = now; candidate = required }
+            candidate = max(candidate, required)
+            if now - (smallerSince ?? now) >= 15 { width = candidate; smallerSince = nil; candidate = 0 }
+        }
+        return width
     }
 }

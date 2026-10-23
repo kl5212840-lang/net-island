@@ -179,6 +179,14 @@ enum QuickLauncherContract {
         suite.expect(launcher.handlePanelKey(NSEvent(keyCode: UInt16(kVK_ANSI_Keypad1))) == nil
                      && events == ["keepAwake.toggle"],
                      "the numeric keypad's 1 activates the first item like the top row's")
+        events.removeAll()
+        let islandItems: [QuickLauncherItem] = [.micMute, .keepAwake]
+        launcher.selectedIndex = 0
+        _ = launcher.handlePanelKey(enter, items: islandItems)
+        suite.expect(events == ["micMute.toggle"], "island Return follows its independently selected order rather than the standalone panel")
+        launcher.select(.keepAwake, items: islandItems)
+        suite.expect(launcher.selectedIndex == 1, "island hover and keyboard share the same custom item indices")
+        launcher.prepareForPresentation()
         for item in [QuickLauncherItem.urlCleaner, .homebrew, .uninstaller, .media] {
             launcher.activeUtility = item
             launcher.prepareForPresentation()

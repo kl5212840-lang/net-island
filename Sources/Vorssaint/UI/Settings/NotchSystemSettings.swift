@@ -16,6 +16,7 @@ struct NotchSystemLayoutSettings: View {
     @AppStorage(DefaultsKey.notchSystemVerticalSpacing) private var verticalSpacing = 10.0
     @AppStorage(DefaultsKey.notchSystemMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.notchSystemHiddenMetrics) private var hiddenMetrics = ""
+    @State private var readingsExpanded = false
     @State private var dragging: NotchSystemMetric?
     private var chinese: Bool { NotchNetworkStrings(l10n.language).chinese }
     private var configuration: NotchSystemConfiguration { .init(order: metricOrder, hidden: hiddenMetrics) }
@@ -51,7 +52,8 @@ struct NotchSystemLayoutSettings: View {
                 slider(chinese ? "垂直间距" : "Vertical spacing", value: $verticalSpacing, range: 4...24, step: 1,
                        label: "\(Int(style.verticalSpacing)) pt")
                 Divider()
-                Text(chinese ? "显示指标与顺序" : "Readings and order").font(.callout.weight(.medium))
+                DisclosureGroup(isExpanded: $readingsExpanded) {
+                VStack(alignment: .leading, spacing: 10) {
                 Text(chinese ? "勾选显示，拖动或用上下箭头排序。仅显示已启用且硬件支持的指标；隐藏只影响岛上的卡片。"
                      : "Choose readings, then drag or use the arrows to reorder. Only enabled, hardware-supported readings appear. Hiding affects island cards only.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -62,6 +64,9 @@ struct NotchSystemLayoutSettings: View {
                         }
                     }
                 }
+                }
+                } label: { Text(chinese ? "显示指标与顺序" : "Readings and order") }
+                    .disclosureGroupStyle(SettingsDisclosureStyle())
                 Divider()
                 HStack {
                     Button(chinese ? "恢复系统卡片默认设置" : "Restore System card defaults", action: reset)
@@ -134,5 +139,8 @@ struct NotchSystemLayoutSettings: View {
     private func reset() {
         layout = "original"; cardScale = 1; horizontalSpacing = 10; verticalSpacing = 10
         metricOrder = ""; hiddenMetrics = ""
+        var appearance = NotchPageAppearance.stored(); appearance.reset("system.")
+        UserDefaults.standard.set(appearance.encoded, forKey: NotchPageAppearance.storageKey)
+        NotchService.shared.syncWithPreferences()
     }
 }

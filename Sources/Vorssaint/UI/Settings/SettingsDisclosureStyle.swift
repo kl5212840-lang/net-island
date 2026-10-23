@@ -18,7 +18,7 @@ struct SettingsDisclosureStyle: DisclosureGroupStyle {
                     Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                         .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
                         .accessibilityHidden(true)
-                    configuration.label
+                    configuration.label.font(.callout.weight(.semibold))
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
@@ -27,7 +27,11 @@ struct SettingsDisclosureStyle: DisclosureGroupStyle {
             .buttonStyle(.plain)
             .accessibilityValue(configuration.isExpanded ? NotchNetworkStrings(L10n.shared.language).expanded : NotchNetworkStrings(L10n.shared.language).collapsed)
             if configuration.isExpanded {
-                configuration.content.transition(.opacity)
+                Divider().padding(.top, 5).padding(.bottom, 13)
+                configuration.content
+                    .padding(.leading, 17)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
             }
         }
     }

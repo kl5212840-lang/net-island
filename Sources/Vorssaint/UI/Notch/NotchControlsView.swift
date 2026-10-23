@@ -9,26 +9,46 @@ struct NotchControlsView: View {
     let size: CGSize
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(NotchPageAppearance.storageKey) private var appearanceData = Data()
+    @AppStorage(DefaultsKey.notchHeaderLayout) private var headerData = Data()
+    @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var mixer = AppVolumeMixer.shared
+    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
     @Environment(\.notchBand) private var band
 
     var body: some View {
         let items = NotchSupport.controls()
         let levels = items.filter(\.isLevel)
-        // The levels go to the island's top row with no readout: the slider
-        // there already shows the level. Beside a camera that cannot split
-        // them evenly they share one row below it.
-        let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
+        // Levels default to the body. The optional original header mode is
+        // used only when no custom shortcut needs either camera wing.
+        let inBand = appearance.bandLevels(levels.count, band: band, headerHasButtons: !NotchHeaderConfiguration.stored().buttons.isEmpty)
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
         let shortcuts = items.filter { !$0.isLevel && $0 != .music }
-        let layout = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
-                                          shortcutCount: shortcuts.count, width: size.width, height: size.height)
+        let layout: NotchControlsLayout = {
+            var result = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
+                                             shortcutCount: shortcuts.count, width: size.width, height: size.height, bodyLevelHeight: appearance.controlsHeight(levels: belowLevels.count))
+            if !belowLevels.isEmpty { result.levelRow = appearance.controlsHeight(levels: belowLevels.count) }
+            return result
+        }()
         if items.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
         } else {
             VStack(spacing: NotchLayout.rowSpacing) {
                 if layout.levelRow > 0 {
-                    NotchLevelRow(levels: belowLevels) { level($0) }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchLayout.bandLevelSpacing),
+                                               count: appearance.controlsColumnCount(levels: belowLevels.count)), spacing: NotchLayout.bandLevelSpacing) {
+                        ForEach(belowLevels) { item in
+                            VStack(alignment: .leading, spacing: 2) {
+                                if appearance.controlsValues {
+                                    HStack { Text(item.title(l10n)).lineLimit(1).minimumScaleFactor(0.8); Spacer(); Text(reading(item)).monospacedDigit() }
+                                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                                }
+                                level(item)
+                                    .padding(.horizontal, max(0, size.width / CGFloat(appearance.controlsColumnCount(levels: belowLevels.count)) * (1 - appearance.controlsTrack) / 2))
+                            }.frame(height: appearance.controlsRowHeight)
+                        }
+                    }
                 }
                 if layout.cardRow > 0 {
                     NotchMusicControlsView(notch: service, height: layout.cardRow).frame(height: layout.cardRow)
@@ -48,6 +68,18 @@ struct NotchControlsView: View {
                 NotchBandLevels(band: band, levels: bandLevels, side: .trailing) { level($0) }
             })
         }
+    }
+
+    private func reading(_ item: NotchControlItem) -> String {
+        let value: Double?
+        switch item {
+        case .volume: value = mixer.systemOutputMuted == true ? 0 : mixer.systemOutputVolume
+        case .keyboardLight: value = brightness.keyboardLightLevel.map(Double.init)
+        default:
+            let displays = brightness.displays.filter { $0.isActive && $0.method != nil }
+            value = (displays.first { $0.id == brightness.focusedDisplayID } ?? displays.first)?.brightness
+        }
+        return value.map { "\(Int((min(1, max(0, $0)) * 100).rounded()))%" } ?? "—"
     }
 
     @ViewBuilder private func level(_ item: NotchControlItem) -> some View {

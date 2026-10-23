@@ -103,6 +103,84 @@ enum NotchNetworkProbe {
         .background(Color(nsColor: .windowBackgroundColor))
         capture(AnyView(readouts), size: CGSize(width: max(540, hangingSize.width + 48), height: 260),
                 name: "network-readouts-\(language)", output: output, failures: &failures)
+        if arguments.contains("--page-layout-only") {
+            var header = NotchHeaderConfiguration()
+            header.set(.networkReadout, at: .leftOuter); header.set(.control(.microphone), at: .leftMiddle)
+            header.set(.settings, at: .rightOuter); header.set(.pin, at: .rightMiddle)
+            overrides[DefaultsKey.notchHeaderLayout] = header.encoded
+            overrides[DefaultsKey.notchHeaderNetworkIconOnly] = true
+            overrides[DefaultsKey.notchQuickAccessLayout] = NotchQuickAccessConfiguration(buttons: []).encoded
+            overrides[DefaultsKey.notchHiddenControls] = "music"
+            overrides[DefaultsKey.notchControlOrder] = "brightness,keyboardLight,volume,keepAwake"
+            overrides[DefaultsKey.brightnessControlEnabled] = true
+            let variants: [(String, NotchPageAppearance)] = [
+                ("original", .init()),
+                ("custom", .init(values: ["tools.columns": "4", "tools.scale": "1.2", "tools.font": "12", "tools.padding": "10", "tools.alignColumns": "true", "controls.columns": "1", "controls.values": "true", "controls.track": "75", "system.font": "1.2", "system.padding": "16", "system.tint": "cyan", "nav.shared.size": "14", "nav.shared.margin": "6"])),
+                ("icons", .init(values: ["tools.iconOnly": "true", "tools.columns": "6", "tools.alignColumns": "true", "tools.padding": "8", "nav.tools.override": "true", "nav.tools.position": "bottom"]))
+            ]
+            for (name, appearance) in variants {
+                overrides[NotchPageAppearance.storageKey] = appearance.encoded
+                UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+                for width: CGFloat in [360, 600] {
+                    for module: NotchModule in [.system, .tools, .controls] {
+                        let geometry = NotchGeometry(screen: hanging.screen, safeAreaTop: 32, cameraWidth: 180,
+                            layout: .custom, customWidth: Double(width), customHeight: name == "custom" ? 420 : 300)
+                        NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: true, selected: module)
+                        let size = NotchService.shared.surfaceSize
+                        capture(AnyView(NotchView(service: .shared).background(.black)
+                            .clipShape(NotchShape.island(height: size.height, geometry: geometry))), size: size,
+                            name: "page-\(module.rawValue)-\(name)-\(language)-\(Int(width))", output: output, failures: &failures, island: true)
+                    }
+                }
+            }
+            for module: NotchModule in [.system, .tools, .controls] {
+                for width: CGFloat in [460, 760] {
+                    capture(AnyView(VStack(alignment: .leading, spacing: 16) {
+                        NotchNavigationSettings(module: module)
+                        NotchPageAppearanceSettings(module: module)
+                        NotchPagePresetSettings()
+                    }.padding(20).background(Color(nsColor: .windowBackgroundColor))),
+                        size: CGSize(width: width, height: module == .tools ? 2200 : 1200),
+                        name: "page-settings-\(module.rawValue)-\(language)-\(Int(width))", output: output, failures: &failures)
+                }
+            }
+            overrides[DefaultsKey.notchNetworkFullUnits] = true
+            overrides[DefaultsKey.notchNetworkFontSize] = 9.0
+            overrides[DefaultsKey.notchNetworkWidth] = 24.0
+            overrides[DefaultsKey.notchNetworkTint] = "custom"
+            overrides[DefaultsKey.notchNetworkDownloadColor] = "FF454A"
+            overrides[DefaultsKey.notchNetworkUploadColor] = "00D8E8"
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            var networkGeometry = hanging
+            networkGeometry.networkStyle = .stored()
+            networkGeometry.networkRequiredWidth = networkGeometry.networkStyle.requiredWidth(
+                download: monitor.snapshot.netDownBytesPerSec, upload: monitor.snapshot.netUpBytesPerSec, inBits: false)
+            networkGeometry.compactSideRoom = 240
+            NotchService.shared.prepareNetworkProbe(geometry: networkGeometry, expanded: false)
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchNetworkSettings(expandAppearance: true, expandBehavior: true).padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 2400),
+                    name: "network-density-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
+            let style = NotchNetworkStyle.stored()
+            for (name, down, up) in [("short", 15.0 * 1024, 1000.0), ("long", 999.0 * 1024 * 1024, 123.4 * 1024), ("zero", 0.0, 0.0)] {
+                let wing = max(style.wingWidth, style.requiredWidth(download: down, upload: up, inBits: false))
+                let sample = VStack(alignment: .leading, spacing: 10) {
+                    Text(language == "zh-Hans" ? "示例读数 · 动态最小宽度" : "Sample readings · Adaptive minimum width").font(.caption)
+                    HStack(spacing: 0) {
+                        NotchNetworkReadout(bytesPerSecond: down, fontSize: 9, fullUnits: true)
+                            .frame(width: wing - 16).padding(.leading, 16)
+                        Color.clear.frame(width: 180)
+                        NotchNetworkReadout(bytesPerSecond: up, upload: true, fontSize: 9, fullUnits: true)
+                            .frame(width: wing - 16).padding(.trailing, 16)
+                    }.frame(height: 32).background(.black, in: Capsule())
+                }.padding(16).background(Color(nsColor: .windowBackgroundColor))
+                capture(AnyView(sample), size: CGSize(width: wing * 2 + 212, height: 100), name: "network-fit-\(name)-\(language)", output: output, failures: &failures)
+            }
+            monitor.setNotchDetailNeeds(.none)
+            print(failures.isEmpty ? "NETWORK ISLAND OK" : "NETWORK ISLAND FAILED: " + failures.joined(separator: "; "))
+            exit(failures.isEmpty ? 0 : 1)
+        }
         if arguments.contains("--named-presets-only") {
             var saved = NotchNetworkPresetLibrary(data: Data())
             saved.presets = [NotchNetworkPreset.capture(name: language == "zh-Hans" ? "日常 · 柔和配色" : "Everyday · Soft colors"),

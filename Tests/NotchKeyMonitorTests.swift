@@ -55,8 +55,9 @@ enum NotchKeyMonitorTests {
     final class Launcher {
         var isEditing = false
         var visibleItems = [0, 1, 2]
+        var islandItems: [Int] { visibleItems }
         var flows: [QuickToolsSupport.GridFlow] = []
-        func handlePanelKey(_ event: NSEvent, flow: QuickToolsSupport.GridFlow) -> NSEvent? {
+        func handlePanelKey(_ event: NSEvent, flow: QuickToolsSupport.GridFlow, items: [Int]? = nil) -> NSEvent? {
             NotchKeyMonitorTests.actions.append("tools")
             flows.append(flow)
             return nil

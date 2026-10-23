@@ -19,6 +19,7 @@ struct NotchNetworkSettings: View {
     @AppStorage(DefaultsKey.notchNetworkOuterSpacing) private var outerSpacing = 0.0
     @AppStorage(DefaultsKey.notchNetworkInnerSpacing) private var innerSpacing = 0.0
     @AppStorage(DefaultsKey.notchNetworkPresets) private var presetsData = Data()
+    @State private var colorsExpanded: Bool
     @State private var appearanceExpanded: Bool
     @State private var behaviorExpanded: Bool
     @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
@@ -42,21 +43,22 @@ struct NotchNetworkSettings: View {
     }
 
     init(expandAppearance: Bool = false, expandBehavior: Bool = false) {
+        _colorsExpanded = State(initialValue: expandAppearance)
         _appearanceExpanded = State(initialValue: expandAppearance)
         _behaviorExpanded = State(initialValue: expandBehavior)
     }
 
     var body: some View {
-        SettingsCard(title: text.title) {
-            Toggle(text.title, isOn: Binding(get: { !paused }, set: { paused = !$0 }))
-                .toggleStyle(.switch).help(text.quickHint)
-            Text(text.quickHint).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(text.preview).font(.caption).foregroundStyle(.secondary)
-            layoutPreview
-            Text(text.previewHint).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsCard(title: text.title) {
+                Toggle(text.title, isOn: Binding(get: { !paused }, set: { paused = !$0 }))
+                    .toggleStyle(.switch).help(text.quickHint)
+                Text(text.quickHint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(text.preview).font(.caption).foregroundStyle(.secondary)
+                layoutPreview
+                Text(text.previewHint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            SettingsCard(title: text.chinese ? "预设与切换" : "Presets and switching") {
             HStack {
                 Text(text.presets)
                 Spacer()
@@ -72,7 +74,8 @@ struct NotchNetworkSettings: View {
                 }.fixedSize().help(text.presetHint)
             }
             NotchNetworkPresetSettings(appearanceSignature: signature + [unit.rawValue])
-            Divider()
+            }
+            SettingsCard(title: text.chinese ? "格式与字体" : "Format and type") {
             Picker(text.format, selection: $fullUnits) {
                 Text(text.compact).tag(false)
                 Text(text.precise).tag(true)
@@ -86,11 +89,14 @@ struct NotchNetworkSettings: View {
                     ForEach(0...2, id: \.self) { Text(String($0)).tag($0) }
                 }.pickerStyle(.segmented)
             }
-            DisclosureGroup(text.appearance, isExpanded: $appearanceExpanded) {
-                VStack(alignment: .leading, spacing: 16) {
                     Picker(text.weight, selection: $weight) {
                         Text(text.regular).tag("regular"); Text(text.medium).tag("medium"); Text(text.bold).tag("bold")
                     }.pickerStyle(.menu)
+                    slider(text.font, value: $fontSize, range: 8...18, step: 0.5, valueText: String(format: "%g pt", Double(style.fontSize)))
+            }
+            SettingsCard {
+                DisclosureGroup(text.chinese ? "颜色与明暗" : "Colors and brightness", isExpanded: $colorsExpanded) {
+                    VStack(alignment: .leading, spacing: 14) {
                     Picker(text.color, selection: $tint) {
                         Text(text.white).tag("white"); Text(text.directionColor).tag("direction")
                         Text(text.customColor).tag("custom")
@@ -110,6 +116,12 @@ struct NotchNetworkSettings: View {
                         Text(text.colorContrastHint).font(.caption).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    }
+                }
+            }
+            SettingsCard {
+                DisclosureGroup(text.chinese ? "尺寸、对齐与留白" : "Size, alignment and padding", isExpanded: $appearanceExpanded) {
+                    VStack(alignment: .leading, spacing: 14) {
                     Picker(text.alignment, selection: $alignment) {
                         Text(text.leading).tag("leading"); Text(text.center).tag("center"); Text(text.trailing).tag("trailing")
                         Text(text.outside).tag("outside")
@@ -119,22 +131,24 @@ struct NotchNetworkSettings: View {
                     slider(text.outerSpacing, value: $outerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.outerSpacing)) pt")
                     slider(text.innerSpacing, value: $innerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.innerSpacing)) pt")
                     slider(text.gap, value: $arrowGap, range: 2...10, step: 1, valueText: "\(Int(style.arrowGap)) pt")
-                    slider(text.font, value: $fontSize, range: 8...18, step: 0.5, valueText: String(format: "%g pt", Double(style.fontSize)))
-                    slider(text.width, value: $width,
+                    slider(text.chinese ? "目标每侧宽度" : "Target width per side", value: $width,
                            range: Double(NotchNetworkStyle.minimumWidth(fontSize: style.fontSize, fullUnits: fullUnits,
                                                                         decimals: decimals, arrowGap: arrowGap, outerSpacing: outerSpacing, innerSpacing: innerSpacing))...240,
                            step: 1, valueText: "\(Int(style.wingWidth)) pt")
+                    Text((text.chinese ? "当前实际每侧宽度：" : "Current actual width per side: ") + "\(Int(service.geometry.resolvedNetworkWidth.rounded())) pt")
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     slider(text.offset, value: $offset, range: -3...3, step: 1, valueText: "\(Int(style.verticalOffset)) pt")
-                    Text(text.widthHint).font(.caption).foregroundStyle(.secondary)
+                    Text(text.chinese ? "下限按当前字号与最短读数计算，可继续收窄。实际读数变长时会对称扩展，连续较短读数保持15秒后再收紧；刘海和圆角安全区始终保留。" : "The lower bound follows the font and shortest reading. Longer readings expand both sides symmetrically; smaller readings must persist for 15 seconds before shrinking. Camera and corner clearances remain protected.").font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Toggle(text.uploadOnLeft, isOn: $uploadOnLeft)
                     if service.geometry.floats {
                         slider(text.capsuleDrop, value: $capsuleDrop, range: NotchCapsuleFit.dropRange, step: 1,
                                valueText: "\(Int(NotchCapsuleFit(width: 0, height: 0, drop: capsuleDrop).drop)) pt")
                     }
-                }.padding(.top, 10)
+                    }
+                }
             }
-            Divider()
+            SettingsCard {
             DisclosureGroup(text.behavior, isExpanded: $behaviorExpanded) {
                 VStack(alignment: .leading, spacing: 16) {
                     Toggle(text.avoidMenus, isOn: $avoidMenus)
@@ -150,11 +164,12 @@ struct NotchNetworkSettings: View {
                     }
                 }.padding(.top, 10)
             }
-            HStack {
-                Spacer()
-                Button(text.reset) { resetAppearance() }
-                    .controlSize(.small)
             }
+            HStack {
+                Text(text.chinese ? "更改自动保存" : "Changes save automatically").font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Button(text.reset) { resetAppearance() }.controlSize(.small)
+            }.padding(.horizontal, 4)
         }
         .disclosureGroupStyle(SettingsDisclosureStyle())
         .onChange(of: style) { _, new in
@@ -196,10 +211,13 @@ struct NotchNetworkSettings: View {
         }
     }
 
+    private var previewWingWidth: CGFloat {
+        max(style.wingWidth, style.requiredWidth(download: 1_234_567, upload: 345_678, inBits: unit == .bits))
+    }
     private var layoutPreview: some View {
         GeometryReader { proxy in
             let camera = service.geometry.floats ? 0 : service.geometry.cameraWidth
-            let total = style.wingWidth * 2 + camera
+            let total = previewWingWidth * 2 + camera
             let scale = min(1, proxy.size.width / max(1, total))
             HStack(spacing: 0) {
                 sample(upload: uploadOnLeft, leading: true)
@@ -230,6 +248,6 @@ struct NotchNetworkSettings: View {
             .frame(maxWidth: .infinity, alignment: style.readingAlignment(leadingSide: leading))
             .padding(.leading, leading ? style.outerSpacing + 16 : style.innerSpacing)
             .padding(.trailing, leading ? style.innerSpacing : style.outerSpacing + 16)
-            .frame(width: style.wingWidth)
+            .frame(width: previewWingWidth)
     }
 }

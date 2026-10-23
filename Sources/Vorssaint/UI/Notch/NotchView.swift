@@ -11,6 +11,9 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(NotchPageAppearance.storageKey) private var appearanceData = Data()
+    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
+    private var navigationStyle: NotchNavigationStyle { appearance.navigation(module: service.selected.rawValue, fallback: navigationPosition) }
     @AppStorage(DefaultsKey.notchNavigationPosition) private var navigationPosition = "top"
     @AppStorage(DefaultsKey.notchHeaderLayout) private var headerLayoutData = Data()
     @Environment(\.colorSchemeContrast) private var contrast
@@ -274,7 +277,7 @@ struct NotchView: View {
     private var showsSectionArrows: Bool {
         service.modules.count > 1 && !service.showingSections && !showsDetail && !service.showingCommandBar
     }
-    private var navigationContentInset: CGFloat { showsSectionArrows ? 16 : 0 }
+    private var navigationContentInset: CGFloat { showsSectionArrows ? 16 + navigationStyle.margin : 0 }
     private var contentViewportSize: CGSize {
         CGSize(width: max(0, service.contentSize.width - navigationContentInset * 2), height: service.contentSize.height)
     }
@@ -334,10 +337,10 @@ struct NotchView: View {
                         Spacer(minLength: 0)
                         sectionArrow(forward: true)
                     }
-                    .padding(.horizontal, NotchSectionNavigation.sideInset(height: service.expandedSize.height))
-                    .padding(.top, NotchNavigationPosition.resolved(navigationPosition)
-                        .topInset(pageTop: NotchSectionNavigation.headerBoundary(in: geometry),
-                                  height: service.expandedSize.height))
+                    .padding(.horizontal, NotchSectionNavigation.sideInset(height: service.expandedSize.height) + navigationStyle.margin)
+                    .padding(.top, navigationStyle.topInset(contentTop: geometry.pageTopInset + navigationTopPadding,
+                            contentBottom: service.expandedSize.height - NotchLayout.bottomInset,
+                            firstRowHeight: navigationRowHeight))
                 }
             }
             .scrollIndicators(.hidden)
@@ -373,6 +376,23 @@ struct NotchView: View {
         }
     }
 
+    private var navigationTopPadding: CGFloat {
+        switch service.selected {
+        case .system: return NotchLayout.systemHoverInset(width: contentViewportSize.width)
+        case .tools: return appearance.toolsPadding
+        default: return 0
+        }
+    }
+
+    private var navigationRowHeight: CGFloat {
+        switch service.selected {
+        case .system: return service.expandedGeometry.systemStyle.cardHeight
+        case .tools: return appearance.toolsHeight
+        case .controls: return NotchSupport.controls().contains(where: \.isLevel) ? appearance.controlsRowHeight : NotchLayout.shortcutHeight
+        default: return 44
+        }
+    }
+
     @ViewBuilder private func sectionArrow(forward: Bool) -> some View {
         if let next = service.adjacentSection(forward: forward) {
             let chinese = NotchNetworkStrings(l10n.language).chinese
@@ -380,11 +400,11 @@ struct NotchView: View {
             let title = action + ": " + next.title(l10n.language)
             Button { service.cycleSection(forward: forward) } label: {
                 Image(systemName: forward ? "chevron.right" : "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: navigationStyle.size, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
             }
             .buttonStyle(NotchSectionArrowStyle())
-            .help(title).accessibilityLabel(title)
+            .notchFastHelp(title, leadingSide: !forward).accessibilityLabel(title)
             .accessibilityIdentifier(forward ? "notch.section.next" : "notch.section.previous")
         }
     }
@@ -553,9 +573,11 @@ struct NotchView: View {
             let shortcuts = items.filter { $0 != .music && !$0.isLevel }
             let levels = items.filter(\.isLevel).count
             let band = NotchBand(geometry: service.expandedGeometry, contentWidth: size.width)
-            size.height = max(size.height, NotchLayout.controls(
-                hasCards: items.contains(.music), levelRow: NotchLayout.bandLevelCount(levels, band: band) < levels,
-                shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
+            let held = appearance.bandLevels(levels, band: band, headerHasButtons: !NotchHeaderConfiguration.stored().buttons.isEmpty)
+            var layout = NotchLayout.controls(hasCards: items.contains(.music), levelRow: held < levels,
+                shortcutCount: shortcuts.count, width: size.width, height: size.height, bodyLevelHeight: appearance.controlsHeight(levels: levels - held))
+            if held < levels { layout.levelRow = appearance.controlsHeight(levels: levels - held) }
+            size.height = max(size.height, layout.height)
         case .timer:
             let session = NotchTimerService.shared.session
             size.height = max(size.height, NotchLayout.timer(

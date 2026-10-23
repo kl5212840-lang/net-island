@@ -978,6 +978,7 @@ def main():
           + "}\nextension NotchCompactTests.Page {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var contentViewportSize:")
               .replace("    private ", "    ", 1)
+          + "private var appearance: NotchPageAppearance { .stored() }\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var pageSize:")
               .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
               .replace("NotchTimerService.shared", "NotchCompactTests.NotchTimerService.shared")
@@ -1477,7 +1478,7 @@ def main():
           + declaration(service, "    func prepareForPresentation()")
           + availability_declaration(service, "    func refreshAvailability()")
           + declaration(service, "    private func clampSelection()")
-          + declaration(service, "    func activateSelection()")
+          + declaration(service, "    func activateSelection(items:")
           + declaration(service, "    func activate(at index:")
           + declaration(service, "    func moveSelection(")
           + declaration(service, "    func select(")

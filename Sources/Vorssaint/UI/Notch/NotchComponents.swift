@@ -324,11 +324,13 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     var spacing: CGFloat = 8
     var leastSpacing: CGFloat? = nil
     var rowSpacing: CGFloat = 8
+    var alignsLastRow = false
+    var columnCount: Int? = nil
     var scrollTarget: Item.ID? = nil
     @ViewBuilder let content: (Item) -> Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var columns: Int { NotchLayout.railColumns(count: items.count, rows: rows) }
+    private var columns: Int { max(1, columnCount ?? NotchLayout.railColumns(count: items.count, rows: rows)) }
     private var starts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, rows))) }
     private var rowStarts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, columns))) }
     /// Nil while the rail scrolls.
@@ -379,6 +381,10 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
         HStack(alignment: .top, spacing: gap) {
             ForEach(items[start..<min(items.count, start + max(1, columns))]) { item in
                 content(item).frame(width: cell)
+            }
+            if alignsLastRow {
+                let missing = max(0, columns - min(items.count - start, max(1, columns)))
+                ForEach(0..<missing, id: \.self) { _ in Color.clear.frame(width: cell).accessibilityHidden(true) }
             }
         }
         .frame(maxWidth: .infinity)

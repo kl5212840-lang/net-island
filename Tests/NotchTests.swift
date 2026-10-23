@@ -7,6 +7,83 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    private static func pageAppearanceContracts(_ suite: TestSuite) {
+        let narrow = NotchNetworkStyle(fontSize: 9, wingWidth: 24, fullUnits: true)
+        let short = narrow.requiredWidth(download: 15 * 1024, upload: 1000, inBits: false)
+        let long = narrow.requiredWidth(download: 999 * 1024 * 1024, upload: 999, inBits: false)
+        suite.expect(narrow.wingWidth < 70 && short < 87 && long > short,
+            "full-unit lower bound allows a narrow island while the actual reading determines required space")
+        var hold = NotchNetworkWidthHold()
+        let wide = hold.update(required: long, now: 0)
+        suite.expect(hold.update(required: short, now: 1) == wide && hold.update(required: short, now: 15) == wide,
+            "brief short readings never jitter the island width")
+        suite.expect(hold.update(required: short, now: 16) < wide && hold.update(required: long, now: 17) >= long,
+            "sustained small readings shrink after fifteen seconds and a larger reading expands immediately")
+        let domain = "com.vorssaint.tests.notch-page-appearance"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let original = NotchPageAppearance()
+        suite.expect(original.toolsWidth == NotchLayout.toolWidth && original.toolsHeight == NotchLayout.toolHeight
+            && original.toolsGap == NotchLayout.toolSpacing && original.toolsLabels && !original.toolsAligned,
+            "island-only customization defaults retain the original tool cell size, labels, gaps and centered final row")
+        let bad = NotchPageAppearance(values: ["tools.scale": "nan", "tools.columns": "999", "system.padding": "-40", "nav.shared.margin": "inf"])
+        suite.expect(bad.toolsScale == 1 && bad.toolsColumns == 8 && bad.systemPadding == 6
+            && bad.navigation(module: "system", fallback: "top").margin == 0,
+            "nonfinite and imported extreme sizes stay inside safe ranges")
+        let customized = NotchPageAppearance(values: ["tools.items": "clipboard,keepAwake", "tools.iconOnly": "true",
+            "tools.columns": "5", "tools.padding": "24", "controls.columns": "1", "controls.values": "true",
+            "nav.shared.position": "bottom", "nav.tools.override": "true", "nav.tools.position": "top"])
+        suite.expect(NotchPageAppearance(data: customized.encoded) == customized
+            && customized.toolsItems == ["clipboard", "keepAwake"], "island choices and ordering survive disk round trip")
+        suite.expect(customized.navigation(module: "system", fallback: "center").position == "bottom"
+            && customized.navigation(module: "tools", fallback: "center").position == "top",
+            "per-section navigation changes do not leak into shared or other section settings")
+        var band = NotchBand(); band.besideCamera = true; band.side = 160
+        suite.expect(original.bandLevels(2, band: band, headerHasButtons: false) == 0,
+            "control sliders default to the body rather than occupying shortcut wings")
+        var bodyGeometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
+        bodyGeometry.pageAppearance = original
+        for levels in 1...3 {
+            let size = bodyGeometry.expandedSize(module: .controls, shortcutCount: 0, sliderCount: levels, controlsHaveMusic: false)
+            suite.expect(bodyGeometry.contentSize(for: size).height == original.controlsHeight(levels: levels),
+                "body slider geometry allocates exactly the rows actually rendered")
+        }
+        let topControls = NotchPageAppearance(values: ["controls.placement": "header"])
+        suite.expect(topControls.bandLevels(2, band: band, headerHasButtons: true) == 0
+            && topControls.bandLevels(2, band: band, headerHasButtons: false) == 2,
+            "explicit header sliders yield to configured shortcuts and never displace their icons")
+        suite.expect(customized.controlsHeight(levels: 3) == 3 * 52 + 2 * NotchLayout.bandLevelSpacing,
+            "single-column value labels participate in the actual control-page height")
+        for width: CGFloat in [220, 360, 544] {
+            suite.expect(customized.toolsCapacity(width: width) >= 1 && customized.toolsCapacity(width: width) <= 5,
+                "manual tool columns reduce safely on narrow islands")
+        }
+        defaults.set(customized.encoded, forKey: NotchPageAppearance.storageKey)
+        defaults.set("network,cpu", forKey: DefaultsKey.notchSystemMetricOrder)
+        defaults.set("brightness,volume", forKey: DefaultsKey.notchControlOrder)
+        defaults.set(Data([9, 8, 7]), forKey: DefaultsKey.notchNetworkPresets)
+        defaults.set(false, forKey: AppFeature.monitorNetwork.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchNetworkPaused)
+        let preset = NotchPagePreset.capture(name: "工作", in: defaults)
+        var library = NotchPagePresetLibrary(data: Data()); library.items = [preset]
+        let restored = NotchPagePresetLibrary(data: library.encoded!)
+        defaults.set(Data(), forKey: NotchPageAppearance.storageKey)
+        defaults.set("cpu", forKey: DefaultsKey.notchSystemMetricOrder)
+        restored.items[0].apply(in: defaults)
+        suite.expect(NotchPageAppearance.stored(in: defaults) == customized
+            && defaults.string(forKey: DefaultsKey.notchSystemMetricOrder) == "network,cpu"
+            && defaults.string(forKey: DefaultsKey.notchControlOrder) == "brightness,volume",
+            "layout presets restore content ordering and appearance together")
+        suite.expect(defaults.data(forKey: DefaultsKey.notchNetworkPresets) == Data([9, 8, 7])
+            && defaults.bool(forKey: DefaultsKey.notchNetworkPaused)
+            && !defaults.bool(forKey: AppFeature.monitorNetwork.availabilityKey),
+            "layout restoration preserves network presets, pause and feature permissions")
+        suite.expect(!restored.accepts(" 工作 ") && restored.accepts("另一个")
+            && NotchPagePresetLibrary(data: Data([0xff])).encoded == nil,
+            "preset names remain unique and malformed libraries cannot be silently overwritten")
+    }
+
     private static func systemCustomizationContracts(_ suite: TestSuite) {
         let defaults = UserDefaults(suiteName: "com.vorssaint.tests.notch-system-customization")!
         defaults.removePersistentDomain(forName: "com.vorssaint.tests.notch-system-customization")
@@ -59,7 +136,7 @@ enum NotchTests {
             }
         }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180,
-                                     layout: .spacious)
+                                     layout: .spacious).legacyHeaderControls
         let originalHeight = geometry.expandedSize(module: .system, systemCards: 3).height
         geometry.systemStyle = .init(scale: 1.35, horizontalSpacing: 24, verticalSpacing: 24)
         suite.expect(geometry.expandedSize(module: .system, systemCards: 3).height > originalHeight,
@@ -214,8 +291,9 @@ enum NotchTests {
                      "padding increases the minimum readable width instead of clipping text")
         let maximum = NotchNetworkStyle(fontSize: 18, wingWidth: 48, fullUnits: true, decimals: 2, arrowGap: 10,
                                         outerSpacing: 24, innerSpacing: 24)
-        suite.expect(maximum.wingWidth <= 240 && maximum.wingWidth >= 229,
-                     "the largest precise text and padding fit inside the selectable wing range")
+        let requiredMaximum = maximum.requiredWidth(download: 999_000_000, upload: 1, inBits: false)
+        suite.expect(maximum.wingWidth < requiredMaximum && requiredMaximum <= 240,
+                     "large precise readings expand from the selectable minimum using measured text, within the maximum range")
         defaults.set("outside", forKey: DefaultsKey.notchNetworkAlignment)
         defaults.set(6.0, forKey: DefaultsKey.notchNetworkOuterSpacing)
         defaults.set(12.0, forKey: DefaultsKey.notchNetworkInnerSpacing)
@@ -257,7 +335,7 @@ enum NotchTests {
         suite.expect(!gate.update(download: 0, upload: 0, threshold: 1024, delay: 10, now: 24), "the next quiet stretch hides after its own deadline")
         suite.expect(gate.update(download: 4096, upload: 0, threshold: 1024, delay: 10, now: 25), "download traffic also reveals it")
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32,
-                                     cameraWidth: 180, compactSideRoom: 100)
+                                     cameraWidth: 180, compactSideRoom: 100).legacyHeaderControls
         geometry.networkStyle = NotchNetworkStyle(fontSize: 14, wingWidth: 64)
         suite.expect(geometry.restingSize(showsContent: true, content: .network).width == 180 + geometry.networkStyle.wingWidth * 2,
                      "the host window grows with the fitted network font and width")
@@ -346,7 +424,7 @@ enum NotchTests {
                && NotchLayout.railFits(columns: 6, itemWidth: 76, spacing: 8, width: 496)
                && !NotchLayout.railFits(columns: 6, itemWidth: 76, spacing: 8, width: 495),
                "a rail spreads its items over the fewest columns its rows allow and fits once they all do")
-        let compact = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180)
+        let compact = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180).legacyHeaderControls
         suite.expect(compact.toolFlow(count: 8) == .rows(columns: 4) && compact.toolFlow(count: 12) == .columns(rows: 2),
                      "the launcher's arrows read across the rows that fit and follow the columns once the rail scrolls")
         let single = (0..<5).map { QuickToolsSupport.gridIndex(after: 2, count: 5, flow: .columns(rows: 1),
@@ -434,7 +512,7 @@ enum NotchTests {
         for layout: NotchSize in [.compact, .spacious] {
             for notched in [true, false] {
                 var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: notched ? 32 : 0,
-                                             cameraWidth: notched ? 210 : 0, layout: layout, silhouette: .capsule)
+                                             cameraWidth: notched ? 210 : 0, layout: layout, silhouette: .capsule).legacyHeaderControls
                 geometry.pageTop = NotchModule.music.pageTop
                 let player = geometry.musicPlayerHeight
                 let rest = geometry.contentSize(for: geometry.expandedSize(module: .music)).height
@@ -466,7 +544,7 @@ enum NotchTests {
         for width in [360.0, 480, 560, 720] {
             for cameraHeight: CGFloat in [24, 32, 40, 64] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: cameraHeight, cameraWidth: 210,
-                                             layout: .custom, customWidth: width, customHeight: 400)
+                                             layout: .custom, customWidth: width, customHeight: 400).legacyHeaderControls
                 suite.expect(geometry.pageTopInset >= cameraHeight, "the page always begins below the physical camera")
                 let area = geometry.activationArea(in: geometry.expanded, hasHeader: true,
                                                    compactActivity: false, expandedHeader: true)
@@ -488,13 +566,13 @@ enum NotchTests {
             }
         }
         for layout: NotchSize in [.compact, .spacious] {
-            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: layout)
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: layout).legacyHeaderControls
             suite.expect(geometry.headerTopInset == 0 && geometry.headerCameraGap == 210,
                          "both presets place the top row beside the camera without a blank row above it")
             suite.expect(geometry.quickAccessCenterY - NotchQuickAccessLayout.diameter / 2 == 38,
                          "floating buttons keep six points of clearance below the menu bar in both presets")
         }
-        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
+        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious).legacyHeaderControls
         suite.expect(simulated.headerTopInset == 0 && simulated.headerCameraGap == 0,
                      "a display without a camera does not reserve a blank row above the open page's own")
         suite.expect(simulated.activationArea(in: simulated.expanded, hasHeader: true,
@@ -526,11 +604,11 @@ enum NotchTests {
             for cameraHeight: CGFloat in [32, 38] {
                 for layout: NotchSize in [.compact, .spacious] {
                     geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight,
-                                                    cameraWidth: camera, layout: layout))
+                                                    cameraWidth: camera, layout: layout).legacyHeaderControls)
                 }
                 for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
                     geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight, cameraWidth: camera,
-                                                    layout: .custom, customWidth: width))
+                                                    layout: .custom, customWidth: width).legacyHeaderControls)
                 }
             }
         }
@@ -563,24 +641,24 @@ enum NotchTests {
         }
         for layout: NotchSize in [.compact, .spacious] {
             for camera: CGFloat in [185, 210] {
-                let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: layout)
+                let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: layout).legacyHeaderControls
                 suite.expect(NotchCaptureControlsLayout(geometry: geometry, titleWidth: titleWidth(.enUS),
                                                         capturesAudio: false).cameraGap == camera,
                              "both presets put the English capture title beside the camera")
             }
         }
-        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .spacious).legacyHeaderControls
         suite.expect(AppLanguage.allCases.allSatisfy {
             NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth($0), capturesAudio: false).cameraGap > 0
         }, "every capture title fits beside a narrow camera in the spacious preset")
-        let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: .compact)
+        let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: .compact).legacyHeaderControls
         suite.expect(NotchCaptureControlsLayout(geometry: crowded, titleWidth: titleWidth(.es),
                                                 capturesAudio: false).cameraGap == 0,
                      "the longest capture title keeps its row below a wide camera in the compact preset")
         let audio = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: true)
         let silent = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: false)
         suite.expect(audio.size.height == silent.size.height + 40, "recording keeps room for its audio switches")
-        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
+        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious).legacyHeaderControls
         let top = NotchCaptureControlsLayout(geometry: simulated, titleWidth: titleWidth(.es), capturesAudio: false)
         suite.expect(top.headerTop == 0 && top.cameraGap == 0 && top.headerHeight == NotchLayout.headerHeight
                      && top.size.height < simulated.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16,
@@ -597,11 +675,11 @@ enum NotchTests {
         var geometries: [NotchGeometry] = []
         for camera: CGFloat in [180, 185, 208, 210, 224, 240] {
             for layout: NotchSize in [.compact, .spacious] {
-                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera, layout: layout))
+                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera, layout: layout).legacyHeaderControls)
             }
             for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
                 geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera,
-                                                layout: .custom, customWidth: width))
+                                                layout: .custom, customWidth: width).legacyHeaderControls)
             }
         }
         for geometry in geometries {
@@ -633,12 +711,12 @@ enum NotchTests {
             suite.expect(bands, "the row's sides and the page below it add up \(place)")
         }
         // The report: a 1710 by 1112 point display with a 208 by 37.5 point camera, in the compact preset.
-        var reported = NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: 208)
+        var reported = NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: 208).legacyHeaderControls
         reported.pageTop = NotchModule.camera.pageTop
         suite.expect(reported.headerCameraGap == 208 && reported.headerTopInset == 0,
                      "Camera mirror keeps its row beside a 208-point camera in the compact preset, as Controls does")
         for silhouette in NotchSilhouette.allCases {
-            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, silhouette: silhouette)
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, silhouette: silhouette).legacyHeaderControls
             for module in NotchModule.allCases {
                 var page = plain
                 page.pageTop = module.pageTop
@@ -664,7 +742,7 @@ enum NotchTests {
             for layout: NotchSize in [.compact, .spacious] {
                 var player = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
                                            cameraWidth: camera, layout: layout,
-                                           silhouette: camera == 0 ? .capsule : .notch)
+                                           silhouette: camera == 0 ? .capsule : .notch).legacyHeaderControls
                 let chosen = player.expandedWidth
                 player.pageTop = NotchModule.music.pageTop
                 player.pageContentWidth = NotchLayout.naturalContentWidth(.music, controls: [], within: player.contentWidth)
@@ -687,7 +765,7 @@ enum NotchTests {
                                                                                       .panel, .commandBar], within: 424) == nil,
                      "a home page whose shortcuts wrap keeps the chosen width")
         var custom = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32, cameraWidth: 210,
-                                   layout: .custom, customWidth: 360)
+                                   layout: .custom, customWidth: 360).legacyHeaderControls
         custom.pageTop = .wrapsCamera
         custom.pageContentWidth = NotchLayout.musicContentWidth
         suite.expect(custom.expandedWidth == 360 && custom.headerCameraGap == 0,
@@ -695,12 +773,12 @@ enum NotchTests {
         var handSet = true, wraps = true
         for (camera, top) in screens {
             let preset = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
-                                       cameraWidth: camera, layout: .spacious, silhouette: camera == 0 ? .capsule : .notch)
+                                       cameraWidth: camera, layout: .spacious, silhouette: camera == 0 ? .capsule : .notch).legacyHeaderControls
                 .page(.music, controls: [], sectionsButton: false)
             for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20) {
                 let base = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
                                          cameraWidth: camera, layout: .custom, customWidth: width,
-                                         silhouette: camera == 0 ? .capsule : .notch)
+                                         silhouette: camera == 0 ? .capsule : .notch).legacyHeaderControls
                 for module: NotchModule in [.music, .timer, .controls] {
                     for sectionsButton in [false, true] {
                         let page = base.page(module, controls: shortcuts, sectionsButton: sectionsButton)
@@ -748,7 +826,7 @@ enum NotchTests {
         for camera: CGFloat in [0, 156, 170, 180, 185, 190, 200, 208, 210, 224] {
             for (size, custom) in sizes {
                 let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
-                                         customWidth: custom, silhouette: camera > 0 ? .notch : .capsule)
+                                         customWidth: custom, silhouette: camera > 0 ? .notch : .capsule).legacyHeaderControls
                 for module in NotchModule.allCases {
                     let floating = base.page(module, controls: home, sectionsButton: false)
                     let leading = base.page(module, controls: home, sectionsButton: true)
@@ -918,7 +996,7 @@ enum NotchTests {
         for (camera, silhouette) in surfaces {
             for (size, width, height) in sizes {
                 let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
-                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                                         customWidth: width, customHeight: height, silhouette: silhouette).legacyHeaderControls
                 for count in 0...tiles.count {
                     for music in [false, true] {
                         for levelCount in 0...levels.count {
@@ -979,7 +1057,7 @@ enum NotchTests {
         narrowControls += tiles.prefix(8)
         let narrowest = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .custom,
                                       customWidth: NotchSize.widthRange.lowerBound,
-                                      customHeight: NotchSize.heightRange.lowerBound, silhouette: .capsule)
+                                      customHeight: NotchSize.heightRange.lowerBound, silhouette: .capsule).legacyHeaderControls
             .page(.controls, controls: narrowControls, sectionsButton: false)
         let content = narrowest.contentSize(for: narrowest.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 3,
                                                                         controlsHaveMusic: false))
@@ -1025,7 +1103,7 @@ enum NotchTests {
         for (top, camera, silhouette) in surfaces {
             for (size, width, height) in sizes {
                 let base = NotchGeometry(screen: screen, safeAreaTop: top, cameraWidth: camera, layout: size,
-                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                                         customWidth: width, customHeight: height, silhouette: silhouette).legacyHeaderControls
                 for count in 1...tiles.count {
                     for music in [false, true] {
                         // No levels, one on each side of a camera, or three in a row below it.
@@ -1100,7 +1178,7 @@ enum NotchTests {
             cameraControls += tiles.prefix(8)
             let page = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: .custom,
                                      customWidth: NotchSize.widthRange.lowerBound,
-                                     customHeight: NotchSize.heightRange.lowerBound)
+                                     customHeight: NotchSize.heightRange.lowerBound).legacyHeaderControls
                 .page(.controls, controls: cameraControls, sectionsButton: false)
             let island = page.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 2, controlsHaveMusic: false)
             let content = page.contentSize(for: island)
@@ -1144,7 +1222,7 @@ enum NotchTests {
         for (camera, silhouette) in surfaces {
             for (size, width, height) in sizes {
                 let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
-                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                                         customWidth: width, customHeight: height, silhouette: silhouette).legacyHeaderControls
                 for button in [false, true] {
                     // The page as the island draws it, for as many tools as the launcher lists.
                     let page = base.page(.tools, controls: [], sectionsButton: button)
@@ -1204,7 +1282,7 @@ enum NotchTests {
             let page = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: .custom,
                                      customWidth: NotchSize.widthRange.lowerBound,
                                      customHeight: NotchSize.heightRange.lowerBound,
-                                     silhouette: camera > 0 ? .notch : .capsule)
+                                     silhouette: camera > 0 ? .notch : .capsule).legacyHeaderControls
                 .page(.tools, controls: [], sectionsButton: false)
             let content = page.contentSize(for: page.expandedSize(module: .tools, toolCount: 8))
             let rows = page.toolRows(count: 8)
@@ -1221,7 +1299,7 @@ enum NotchTests {
         // The island's page and the Content tab's preview share the view.
         let source = (try? String(contentsOfFile: "Sources/Vorssaint/UI/QuickLauncher/QuickLauncherView.swift",
                                   encoding: .utf8)) ?? ""
-        let rail = source.contains("leastSpacing: NotchLayout.toolLeastSpacing")
+        let rail = source.contains("leastSpacing: min(appearance.toolsGap, NotchLayout.toolLeastSpacing)")
         let titles = source.contains("cell(item, titleInset: titleInset)") && source.contains(".padding(.horizontal, titleInset)")
         suite.expect(rail && titles, "the Tools page's rail closes its gaps before it scrolls and insets its titles by them")
     }
@@ -1243,7 +1321,7 @@ enum NotchTests {
             for physical in [false, true] {
                 for height: CGFloat in [16, 24, 32, 40, 64] {
                     let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? height : 0,
-                                                 cameraWidth: physical ? 180 : 0, menuBarHeight: height)
+                                                 cameraWidth: physical ? 180 : 0, menuBarHeight: height).legacyHeaderControls
                     for notice in notices {
                         let wings = notice.wings(in: geometry)
                         func content(_ wing: CGFloat) -> CGFloat { wing - notice.inset(wing: wing) - notice.cameraGap }
@@ -1293,7 +1371,7 @@ enum NotchTests {
                && NotchNotice(event: .battery, title: "Charging", detail: "80%", symbol: "battery.100percent.bolt").cameraGap == 16,
                "text reads from the island's ends while levels keep hugging the camera")
         let narrow = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 640, height: 480),
-                                   safeAreaTop: 32, cameraWidth: 210)
+                                   safeAreaTop: 32, cameraWidth: 210).legacyHeaderControls
         let size = narrow.noticeSize(wingWidth: long.preferredWingWidth)
         suite.expect(size.width <= narrow.screen.width - 24 && size.height == narrow.menuBarHeight,
                "long device names cannot push a notice past a narrow display")
@@ -1358,7 +1436,7 @@ enum NotchTests {
                      "a banner replacing a wider one keeps each of its sides")
         for physical in [false, true] {
             let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? 32 : 0,
-                                         cameraWidth: physical ? 180 : 0, menuBarHeight: 32)
+                                         cameraWidth: physical ? 180 : 0, menuBarHeight: 32).legacyHeaderControls
             let compact = geometry.noticeSize(wings: short.preferredWings)
             let widest = geometry.noticeSize(wings: long.preferredWings)
             var shifted = geometry
@@ -1375,7 +1453,7 @@ enum NotchTests {
             let bar = CGRect(x: screen.minX, y: screen.maxY - height, width: screen.width, height: height)
             for room: CGFloat? in [nil, 0, 12, 43, 44, 56, 64] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
-                                             menuBarHeight: height, compactSideRoom: room)
+                                             menuBarHeight: height, compactSideRoom: room).legacyHeaderControls
                 let sizes = [geometry.restingSize(showsContent: false), geometry.collapsed,
                              geometry.notice, geometry.noticeSize(wingWidth: 190),
                              geometry.compactMusicGeometry.compactActivitySize,
@@ -1389,7 +1467,7 @@ enum NotchTests {
                 suite.expect(abs(geometry.cameraWidth / geometry.cameraHeight - 180.0 / 32) < 0.001,
                        "fitting a shorter menu bar scales the whole simulated camera profile proportionally")
             }
-            var crowded = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: height)
+            var crowded = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: height).legacyHeaderControls
             let camera = crowded.frame(for: crowded.restingSize(showsContent: false))
             let occupied = [CGRect(x: screen.minX, y: bar.minY, width: camera.minX - screen.minX - 10, height: height),
                             CGRect(x: camera.maxX + 10, y: bar.minY, width: screen.maxX - camera.maxX - 10, height: height)]
@@ -1412,10 +1490,10 @@ enum NotchTests {
         for screen in screens {
             for barHeight: CGFloat in [16, 24, 32, 40, 64] {
                 let physical = NotchGeometry(screen: screen, safeAreaTop: barHeight, cameraWidth: 180 * barHeight / 32,
-                                             menuBarHeight: barHeight)
+                                             menuBarHeight: barHeight).legacyHeaderControls
                 for room in rooms {
                     let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
-                                                 menuBarHeight: barHeight, compactSideRoom: room)
+                                                 menuBarHeight: barHeight, compactSideRoom: room).legacyHeaderControls
                     suite.expect(!geometry.isNotched && geometry.cameraWidth == physical.cameraWidth
                            && geometry.cameraHeight == physical.cameraHeight
                            && geometry.safeContentTop == physical.safeContentTop,
@@ -1456,18 +1534,18 @@ enum NotchTests {
 
     private static func menuSpaceReuseContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
-        let previous = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, compactSideRoom: 0)
-        let largerBar = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 32)
+        let previous = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, compactSideRoom: 0).legacyHeaderControls
+        let largerBar = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 32).legacyHeaderControls
         let menu = CGRect(x: screen.midX + previous.cameraWidth / 2 + 4, y: screen.maxY - 24, width: 80, height: 24)
         suite.expect(NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: previous.cameraWidth, barHeight: 24, occupied: [menu]) != nil
                && NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: largerBar.cameraWidth, barHeight: 32, occupied: [menu]) == nil,
                "a taller simulated cutout can occupy a menu that was clear before the bar changed")
         suite.expect(!largerBar.hasSameMenuBar(as: previous),
                "a changed menu bar cannot reuse clearance from a narrower simulated camera")
-        let moved = NotchGeometry(screen: screen.offsetBy(dx: -1440, dy: 900), safeAreaTop: 0, cameraWidth: 0)
+        let moved = NotchGeometry(screen: screen.offsetBy(dx: -1440, dy: 900), safeAreaTop: 0, cameraWidth: 0).legacyHeaderControls
         suite.expect(!moved.hasSameMenuBar(as: previous), "another display cannot reuse the previous menu measurement")
         for layout in NotchSize.allCases {
-            let resized = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: layout)
+            let resized = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: layout).legacyHeaderControls
             suite.expect(resized.hasSameMenuBar(as: previous),
                    "changing the expanded size preserves valid menu clearance without flicker")
         }
@@ -1491,7 +1569,7 @@ enum NotchTests {
         }
         for height: CGFloat in [16, 22, 24, 28, 30, 32, 33, 37, 64] {
             suite.expect(read(1, gap: height) == height, "the selected display's current visible bar supplies its height")
-            let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: height)
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: height).legacyHeaderControls
             suite.expect(geometry.collapsed.height == height && geometry.compactMusicGeometry.compactActivitySize.height == height,
                    "the simulated cutout and music strip stay within the measured bar")
             for gap: CGFloat in [0, 1, -10, 15, 65, 600, .nan, .infinity] {
@@ -1536,7 +1614,7 @@ enum NotchTests {
         for safeTop: CGFloat in [24, 32, 37.5, 40] {
             for barHeight: CGFloat in [24, 32, 33, 37, 38, 39, 40, 64] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
-                                             menuBarHeight: barHeight, compactSideRoom: 100)
+                                             menuBarHeight: barHeight, compactSideRoom: 100).legacyHeaderControls
                 let strips = [geometry.restingSize(showsContent: false), geometry.restingSize(showsContent: true),
                               geometry.collapsed, geometry.bareCutout, geometry.notice,
                               geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
@@ -1548,7 +1626,7 @@ enum NotchTests {
                 suite.expect(geometry.menuBarHeight == max(safeTop, barHeight),
                        "the bar's own height remains available for measuring menu space")
                 let covering = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
-                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: true)
+                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: true).legacyHeaderControls
                 let covered = [covering.restingSize(showsContent: false), covering.restingSize(showsContent: true),
                                covering.collapsed, covering.bareCutout, covering.notice,
                                covering.noticeSize(wingWidth: 190), covering.compactMusicGeometry.compactActivitySize,
@@ -1562,9 +1640,9 @@ enum NotchTests {
         }
         for silhouette in NotchSilhouette.allCases {
             let enabled = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
-                                        silhouette: silhouette, hideMenuBarGap: true)
+                                        silhouette: silhouette, hideMenuBarGap: true).legacyHeaderControls
             let disabled = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
-                                         silhouette: silhouette, hideMenuBarGap: false)
+                                         silhouette: silhouette, hideMenuBarGap: false).legacyHeaderControls
             suite.expect(enabled == disabled, "gap hiding leaves simulated notches and floating capsules unchanged")
         }
         let closed = NotchLayout.surfaceRadius(height: 32)
@@ -1586,10 +1664,10 @@ enum NotchTests {
                      "a notch fit written by hand is brought back to whole-point widths and half-point heights within range")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let reported = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                     menuBarHeight: 33, compactSideRoom: 100)
+                                     menuBarHeight: 33, compactSideRoom: 100).legacyHeaderControls
         let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                    menuBarHeight: 33, compactSideRoom: 100,
-                                   cameraFit: NotchCameraFit(width: 2, height: 0.5))
+                                   cameraFit: NotchCameraFit(width: 2, height: 0.5)).legacyHeaderControls
         suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 32,
                "without a fit the island matches the housing macOS reports")
         suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 32.5,
@@ -1608,13 +1686,13 @@ enum NotchTests {
         suite.expect(fitted.expandedWidth == reported.expandedWidth && fitted.contentBudget == reported.contentBudget,
                "the open island keeps its chosen size")
         let shorter = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                    cameraFit: NotchCameraFit(width: -3, height: -1))
+                                    cameraFit: NotchCameraFit(width: -3, height: -1)).legacyHeaderControls
         suite.expect(shorter.cameraWidth == 176 && shorter.notice.height == 31,
                "a housing reported too large can be narrowed and shortened")
 
-        let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24)
+        let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24).legacyHeaderControls
         let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
-                                      cameraFit: NotchCameraFit(width: 10, height: 6))
+                                      cameraFit: NotchCameraFit(width: 10, height: 6)).legacyHeaderControls
         suite.expect(simulated == plain, "a display without a camera keeps its simulated cutout")
 
         let extreme = NotchCameraFit(width: 100, height: -100)
@@ -1656,9 +1734,9 @@ enum NotchTests {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let room = NotchLayout.outlineWidth
         let bare = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                 menuBarHeight: 33, compactSideRoom: 100)
+                                 menuBarHeight: 33, compactSideRoom: 100).legacyHeaderControls
         let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                     menuBarHeight: 33, compactSideRoom: 100, outline: true)
+                                     menuBarHeight: 33, compactSideRoom: 100, outline: true).legacyHeaderControls
         suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
                && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
                "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
@@ -1670,13 +1748,13 @@ enum NotchTests {
                && bare.bareCutout == bare.restingSize(showsContent: false),
                "full screen and the Lock Screen draw no outline, so their cutout keeps to the camera")
         let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                   cameraFit: NotchCameraFit(width: -3, height: -1), outline: true)
+                                   cameraFit: NotchCameraFit(width: -3, height: -1), outline: true).legacyHeaderControls
         suite.expect(fitted.cameraWidth == 176 + room * 2 && fitted.cameraHeight == 31 + room,
                "the outline's room adds to a notch fit")
         for silhouette in [NotchSilhouette.notch, .capsule] {
-            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette)
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette).legacyHeaderControls
             let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
-                                          silhouette: silhouette, outline: true)
+                                          silhouette: silhouette, outline: true).legacyHeaderControls
             suite.expect(simulated == plain, "a cutout without a camera already shows its outline on the menu bar")
         }
     }
@@ -1686,7 +1764,7 @@ enum NotchTests {
         for height: CGFloat in [16, 22, 24, 28, 30, 33, 37, 64] {
             for room: CGFloat? in [nil, 0, 43, 44, 56, 0, 56] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
-                                             menuBarHeight: height, compactSideRoom: room).compactMusicGeometry
+                                             menuBarHeight: height, compactSideRoom: room).legacyHeaderControls.compactMusicGeometry
                 let contentLeft = geometry.compactActivityWingWidth + geometry.compactMusicLabelInset
                 let bottomCurveEnd = NotchLayout.shoulder(height: height) + NotchLayout.surfaceRadius(height: height)
                 suite.expect(contentLeft >= bottomCurveEnd + 4,
@@ -1736,7 +1814,7 @@ enum NotchTests {
                && Layout.namedWings(title: "Midnight City", artist: "M83", geometry: compactMusic, room: -1) == nil,
                "the named side stops at the menus beside the island, and with no room past the cover the song stays unnamed")
         let narrowScreen = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 420, height: 300), safeAreaTop: 32,
-                                         cameraWidth: 180, menuBarHeight: 24, compactSideRoom: 100).compactMusicGeometry
+                                         cameraWidth: 180, menuBarHeight: 24, compactSideRoom: 100).legacyHeaderControls.compactMusicGeometry
         let edge = Layout.namedWings(title: String(repeating: "Long ", count: 40), artist: nil, geometry: narrowScreen,
                                      room: .infinity)
         suite.expect(edge.map { narrowScreen.cameraWidth / 2 + $0.leading <= narrowScreen.screen.width / 2 - 12 } == true,
@@ -1753,12 +1831,12 @@ enum NotchTests {
                                        room: .infinity) == nil,
                "a strip whose wings gave way to the menus has no cover to name the song beside")
         let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
-                                      compactSideRoom: 100).compactMusicGeometry
+                                      compactSideRoom: 100).legacyHeaderControls.compactMusicGeometry
         suite.expect(Layout.fillsCameraGap(simulated)
                && Layout.namedWings(title: "Midnight City", artist: "M83", geometry: simulated, room: .infinity) == nil,
                "a simulated camera already names the song between its wings")
         let short = NotchGeometry(screen: screen, safeAreaTop: 24, cameraWidth: 180, menuBarHeight: 24,
-                                  compactSideRoom: 100).compactMusicGeometry
+                                  compactSideRoom: 100).legacyHeaderControls.compactMusicGeometry
         let titleOnly = Layout.wordsWidth(title: "Midnight City", artist: nil)
         suite.expect(!Layout.showsArtist(short) && Layout.showsArtist(compactMusic)
                && Layout.namedWings(title: "Midnight City", artist: "A much longer artist name", geometry: short, room: .infinity)?.leading
@@ -1944,6 +2022,7 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        pageAppearanceContracts(suite)
         systemCustomizationContracts(suite)
         networkCustomizationContracts(suite)
         networkPresetContracts(suite)
@@ -2186,10 +2265,10 @@ enum NotchTests {
         // A capsule's row runs across the island; the 13-inch camera at the
         // compact width and the spacious one both wrap the camera.
         let capsuleHome = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: 0,
-                                        cameraWidth: 0, menuBarHeight: 24, silhouette: .capsule)
-        let narrowHome = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
+                                        cameraWidth: 0, menuBarHeight: 24, silhouette: .capsule).legacyHeaderControls
+        let narrowHome = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180).legacyHeaderControls
         let wideHome = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1280, height: 832), safeAreaTop: 28,
-                                     cameraWidth: 156, layout: .spacious, menuBarHeight: 28)
+                                     cameraWidth: 156, layout: .spacious, menuBarHeight: 28).legacyHeaderControls
         func homeHeight(_ geometry: NotchGeometry, sliders: Int, music: Bool = true) -> CGFloat {
             geometry.expandedSize(module: .controls, sliderCount: sliders, controlsHaveMusic: music).height
         }
@@ -2411,7 +2490,7 @@ enum NotchTests {
                && NotchSupport.visibleIdleContent(isPlaying: true, in: defaults) == .music,
                "re-enabling automatic music restores the selected music only during playback")
         let idleGeometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
-                                        safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
+                                        safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100).legacyHeaderControls
         let networkAvailable = defaults.object(forKey: AppFeature.monitorNetwork.availabilityKey)
         defaults.set(true, forKey: AppFeature.monitorNetwork.availabilityKey)
         defaults.set(NotchIdleContent.network.rawValue, forKey: DefaultsKey.notchIdleContent)
@@ -2428,7 +2507,7 @@ enum NotchTests {
         suite.expect(networkCrowded.restingSize(showsContent: true, content: .network).width == networkCrowded.cameraWidth,
                      "network readings yield to menus when either wing cannot fit intact")
         let capsule = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 0, cameraWidth: 0,
-                                    silhouette: .capsule)
+                                    silhouette: .capsule).legacyHeaderControls
         suite.expect(capsule.restingSize(showsContent: false, content: .network).width >= 144
                      && capsule.restingSize(showsContent: false, content: .network).height == capsule.stripHeight,
                      "a floating network capsule reserves room for both directions without increasing its height")
@@ -2534,7 +2613,7 @@ enum NotchTests {
         let layoutEditor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
         suite.expect(controlsView.contains("NotchBandLevels(band: band, levels: bandLevels, side: .leading)")
                      && controlsView.contains("NotchBandLevels(band: band, levels: bandLevels, side: .trailing)")
-                     && controlsView.contains("NotchLevelRow(levels: belowLevels)")
+                     && controlsView.contains("appearance.controlsHeight(levels: belowLevels.count)")
                      && layoutEditor.contains("NotchHeaderEditor(island: frame, geometry: previewGeometry, scale: scale)")
                      && layoutEditor.contains("NotchLevelRow(levels: belowLevels)"),
                      "the live Controls page retains its levels while Settings exposes editable top anchors and the remaining preview levels")
@@ -2710,11 +2789,11 @@ enum NotchTests {
         suite.expect(topArea.contains(CGPoint(x: idleGeometry.expanded.width / 2, y: 1))
                && topArea.maxY == idleGeometry.safeContentTop,
                "the very top is clickable while section buttons below it keep their own actions")
-        let footerGeometry = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 0)
+        let footerGeometry = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 0).legacyHeaderControls
         suite.expect(footerGeometry.activationArea(in: footerGeometry.compactActivitySize, hasHeader: false, compactActivity: true).maxY
                == footerGeometry.compactActivityTopPadding,
                "top activation does not cover timer and download controls in the footer")
-        let plainGeometry = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 0, cameraWidth: 0, compactSideRoom: 0)
+        let plainGeometry = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 0, cameraWidth: 0, compactSideRoom: 0).legacyHeaderControls
         suite.expect(plainGeometry.activationArea(in: plainGeometry.compactActivitySize, hasHeader: false, compactActivity: true).width == plainGeometry.cameraWidth,
                "the simulated camera leaves the activity controls beside it independently clickable")
         suite.expect(ScreenshotSupport.selectionDimAlpha(notchControls: true, isFrozen: true, isDragging: false) == 0,
@@ -2954,9 +3033,9 @@ enum NotchTests {
                       CGRect(x: -1920, y: -100, width: 1920, height: 1080),
                       CGRect(x: 100, y: 982, width: 900, height: 1440),
                       CGRect(x: 0, y: 0, width: 640, height: 480)]
-        let compact = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210)
-        let spacious = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
-        let tall = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom, customHeight: 640)
+        let compact = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210).legacyHeaderControls
+        let spacious = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .spacious).legacyHeaderControls
+        let tall = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom, customHeight: 640).legacyHeaderControls
         for geometry in [compact, spacious, tall] {
             suite.expect(geometry.sectionPickerSize(count: 1).height < geometry.sectionPickerSize(count: allModules.count).height,
                    "a short search result shrinks the gallery instead of reserving empty rows")
@@ -2998,7 +3077,7 @@ enum NotchTests {
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
                "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")
         for layout in NotchSize.allCases {
-            let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: layout)
+            let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: layout).legacyHeaderControls
             for module in NotchModule.allCases {
                 let content = geometry.contentSize(for: geometry.expandedSize(module: module)).height
                 suite.expect(content <= geometry.contentBudget && content > 0,
@@ -3055,7 +3134,7 @@ enum NotchTests {
         for width in [360.0, 480.0, 600.0] {
             for height in [NotchSize.heightRange.lowerBound, 640.0] {
                 let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210,
-                                             layout: .custom, customWidth: width, customHeight: height)
+                                             layout: .custom, customWidth: width, customHeight: height).legacyHeaderControls
                 for shortcuts in 0...12 {
                     for (sliders, music) in (0...3).flatMap({ sliders in [(sliders, false), (sliders, true)] }) {
                         let size = geometry.expandedSize(module: .controls, shortcutCount: shortcuts, sliderCount: sliders,
@@ -3084,7 +3163,7 @@ enum NotchTests {
             for width in [360.0, 470.0, 600.0] {
                 for height in [NotchSize.heightRange.lowerBound, 400.0, 520.0, 640.0] {
                     let custom = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210,
-                                               layout: .custom, customWidth: width, customHeight: height)
+                                               layout: .custom, customWidth: width, customHeight: height).legacyHeaderControls
                     let available = height - custom.headerTopInset - custom.headerChromeHeight
                     suite.expect(custom.contentBudget == available, "a custom island's budget is what its height leaves below the chrome")
                     for module in NotchModule.allCases {
@@ -3116,19 +3195,19 @@ enum NotchTests {
         }
         for invalid in [Double.nan, .infinity, -.infinity, -200, 0, 1e9] {
             let custom = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom,
-                                       customWidth: invalid, customHeight: invalid)
+                                       customWidth: invalid, customHeight: invalid).legacyHeaderControls
             suite.expect(NotchSize.widthRange.contains(custom.customWidth) && NotchSize.heightRange.contains(custom.customHeight)
                    && frames[0].contains(custom.frame(for: custom.expandedSize(module: .tools))),
                    "invalid imported dimensions cannot create an unbounded or off-screen panel")
         }
         let wideCamera = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 390, layout: .custom,
-                                       customWidth: 360)
+                                       customWidth: 360).legacyHeaderControls
         suite.expect(wideCamera.expanded.width > wideCamera.cameraWidth,
                "a requested narrow panel still clears a wider physical camera")
         for frame in frames {
             for notch in [false, true] {
                 let geometry = NotchGeometry(screen: frame, safeAreaTop: notch ? 32 : 0,
-                                             cameraWidth: notch ? 210 : 0)
+                                             cameraWidth: notch ? 210 : 0).legacyHeaderControls
                 for size in [geometry.collapsed, geometry.notice, geometry.noticeSize(wingWidth: 190), geometry.expanded] {
                     let positioned = geometry.frame(for: size)
                     suite.expect(frame.contains(positioned), "notch fits displays in every coordinate quadrant")
@@ -3161,7 +3240,7 @@ enum NotchTests {
         }
         for frame in frames {
             for layout in NotchSize.allCases {
-                let geometry = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210, layout: layout)
+                let geometry = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210, layout: layout).legacyHeaderControls
                 for module in NotchModule.allCases {
                     let target = geometry.expandedSize(module: module)
                     let envelope = NotchMotion.envelope(from: geometry.notice, to: target)
@@ -3202,13 +3281,13 @@ enum NotchTests {
             menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
                "a menu occupying the island's center still hides it")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                        menuBarHeight: 24, compactSideRoom: freeRoom)
+                                        menuBarHeight: 24, compactSideRoom: freeRoom).legacyHeaderControls
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,
                "quiet idle and the lateral strip keep the menu bar's height")
         suite.expect(constrained.restingWingWidth == 0,
                "an indicator is omitted when there is not enough room to render it intact")
         let roomy = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                 menuBarHeight: 24, compactSideRoom: 100)
+                                 menuBarHeight: 24, compactSideRoom: 100).legacyHeaderControls
         let notificationSize = roomy.noticeSize(wingWidth: 190)
         suite.expect(notificationSize.height == roomy.menuBarHeight && roomy.notice.height == notificationSize.height
                && notificationSize.width > roomy.notice.width,
@@ -3217,7 +3296,7 @@ enum NotchTests {
             for notched in [false, true] {
                 for barHeight: CGFloat in [16, 24, 32, 40, 64] {
                     let geometry = NotchGeometry(screen: frame, safeAreaTop: notched ? 32 : 0,
-                        cameraWidth: notched ? 210 : 0, menuBarHeight: barHeight)
+                        cameraWidth: notched ? 210 : 0, menuBarHeight: barHeight).legacyHeaderControls
                     for wing in [CGFloat(112), 190, 240] {
                         let size = geometry.noticeSize(wingWidth: wing)
                         let wings = geometry.noticeWingWidth(preferred: wing)
@@ -3442,7 +3521,7 @@ enum NotchTests {
                "compact music wings beside a physical camera hold only the cover and the bars")
         for safeArea: CGFloat in [32, 33, 37.5, 38] {
             let music = NotchGeometry(screen: menuScreen, safeAreaTop: safeArea, cameraWidth: 185,
-                                      menuBarHeight: 24, compactSideRoom: 100).compactMusicGeometry
+                                      menuBarHeight: 24, compactSideRoom: 100).legacyHeaderControls.compactMusicGeometry
             let height = music.compactActivitySize.height
             let shoulder = NotchLayout.shoulder(height: height)
             let corner = NotchLayout.surfaceRadius(height: height)
@@ -3485,14 +3564,14 @@ enum NotchTests {
                "crowded music retains the same thin silhouette")
         suite.expect(roomy.musicStrip.width <= 380 && roomy.restingWingWidth == 44,
                "music and idle indicators both respect the same measured menu gap")
-        let simulated = NotchGeometry(screen: menuScreen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22)
+        let simulated = NotchGeometry(screen: menuScreen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22).legacyHeaderControls
         suite.expect(simulated.frame(for: simulated.collapsed).maxY == menuScreen.maxY
                && simulated.cameraHeight == 22 && simulated.cameraWidth == 180 * 22.0 / 32,
                "a simulated cutout has notebook proportions and attaches directly to the screen edge")
         let crowdedRooms: [CGFloat?] = [nil, -1, 0, 27, 43, CGFloat.nan, CGFloat.infinity]
         for available in crowdedRooms {
             let crowded = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                        menuBarHeight: 32, compactSideRoom: available)
+                                        menuBarHeight: 32, compactSideRoom: available).legacyHeaderControls
             let size = crowded.compactActivitySize
             let window = crowded.frame(for: size)
             let visibleContentTop = window.maxY - crowded.compactActivityTopPadding
@@ -3509,7 +3588,7 @@ enum NotchTests {
         }
         for available in [CGFloat(44), 80, 100, 180] {
             let lateral = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                        menuBarHeight: 32, compactSideRoom: available)
+                                        menuBarHeight: 32, compactSideRoom: available).legacyHeaderControls
             suite.expect(!lateral.compactActivityUsesFooter && lateral.compactActivitySize == lateral.musicStrip
                    && lateral.compactActivityCameraGap == lateral.cameraWidth
                    && lateral.compactActivityTopPadding == 0,
@@ -3517,17 +3596,17 @@ enum NotchTests {
         }
         for frame in frames {
             let external = NotchGeometry(screen: frame, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22,
-                                          compactSideRoom: nil)
+                                          compactSideRoom: nil).legacyHeaderControls
             let position = external.frame(for: external.compactActivitySize)
             suite.expect(position.maxY == frame.maxY && frame.contains(position)
                    && external.compactActivityWingWidth == 0 && external.compactActivityTopPadding == 0,
                    "a simulated notch stays attached to its own screen edge in every coordinate quadrant")
         }
-        let mediaGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180)
+        let mediaGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180).legacyHeaderControls
         for layout in NotchSize.allCases {
             for customHeight in [400.0, 640.0] {
                 let geometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                             layout: layout, customHeight: customHeight)
+                                             layout: layout, customHeight: customHeight).legacyHeaderControls
                 let history = geometry.expandedSize(module: .captures)
                 let preview = geometry.expandedSize(module: .captures, capturePreviewHeight: 210)
                 let shared = geometry.expandedSize(module: .captures, capturePreviewHeight: 268)
@@ -3545,7 +3624,7 @@ enum NotchTests {
         }
         for layout in NotchSize.allCases {
             let fitting = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                        layout: layout, customHeight: 640)
+                                        layout: layout, customHeight: 640).legacyHeaderControls
             for measured: CGFloat in [120, 280, 370, 480] {
                 let fileMedia = fitting.expandedSize(module: .files, fileMediaHeight: measured)
                 suite.expect(fitting.contentSize(for: fileMedia).height == measured,
@@ -3557,13 +3636,13 @@ enum NotchTests {
                "an open file-media session does not enlarge unrelated notch modules")
         for height in [400.0, 520.0, 640.0] {
             let custom = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                        layout: .custom, customHeight: height)
+                                        layout: .custom, customHeight: height).legacyHeaderControls
             let target = custom.expandedSize(module: .files, fileMediaHeight: 600)
             suite.expect(target.height <= height && menuScreen.contains(custom.frame(for: target)),
                    "the embedded media workspace respects the user's custom height")
         }
         let shortScreen = CGRect(x: 0, y: 0, width: 1024, height: 600)
-        let shortMedia = NotchGeometry(screen: shortScreen, safeAreaTop: 0, cameraWidth: 0)
+        let shortMedia = NotchGeometry(screen: shortScreen, safeAreaTop: 0, cameraWidth: 0).legacyHeaderControls
         let shortTarget = shortMedia.expandedSize(module: .files, fileMediaHeight: 600)
         suite.expect(shortTarget.height <= shortScreen.height - 48 && shortScreen.contains(shortMedia.frame(for: shortTarget)),
                "the larger media workspace preserves the screen margin on shorter displays")
@@ -3972,21 +4051,21 @@ enum NotchTests {
                      && NotchCalendarSupport.countdownText(until: now, now: now) == "0:00",
                      "the compact clock includes seconds and never shows negative time")
         let physical = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
-                                     safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 120)
+                                     safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 120).legacyHeaderControls
         let calendarWings = physical.compactCalendarGeometry
         let calendarFooter = NotchGeometry(screen: physical.screen, safeAreaTop: 32,
-                                           cameraWidth: 180, compactSideRoom: 30).compactCalendarGeometry
+                                           cameraWidth: 180, compactSideRoom: 30).legacyHeaderControls.compactCalendarGeometry
         suite.expect(calendarWings.compactActivityWingWidth == 120 && !calendarWings.compactActivityUsesFooter
                      && calendarFooter.compactActivityUsesFooter && calendarFooter.compactActivityCameraGap == 0,
                      "the event title uses the available wings or a full row below a crowded physical notch")
         suite.expect(physical.compactCalendarGeometry(wing: 90).compactActivityWingWidth == 90
                      && physical.compactCalendarGeometry(wing: 30).compactActivityWingWidth == 72
                      && physical.compactCalendarGeometry(wing: 500).compactActivityWingWidth == 120
-                     && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
+                     && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80).legacyHeaderControls
                         .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
                      "the countdown wings fit the wider of the title and the clock, within the menus' room")
         func menus(_ room: CGFloat) -> NotchGeometry {
-            NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: room)
+            NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: room).legacyHeaderControls
         }
         let pair = physical.compactCalendarGeometry(wing: 66, paired: true)
         suite.expect(pair.compactActivityWingWidth == 66 && !pair.compactActivityUsesFooter
@@ -4228,4 +4307,12 @@ enum NotchTests {
                "an appointment without an identifier falls back to opening Calendar itself")
     }
 
+}
+
+// These pre-existing geometry vectors continue to cover the original optional
+// header-slider presentation; body defaults have dedicated sizing/safety coverage.
+private extension NotchGeometry {
+    var legacyHeaderControls: Self {
+        var result = self; result.pageAppearance.values["controls.placement"] = "header"; return result
+    }
 }

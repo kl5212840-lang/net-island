@@ -11,21 +11,22 @@ enum NotchSectionPagingTests {
             suite.expect(inset > NotchLayout.shoulder(height: height) && inset + 24 <= NotchLayout.horizontalInset + 16,
                          "navigation target clears the silhouette shoulder without covering page content")
         }
-        for height: CGFloat in [160, 260, 400] {
-            let positions = NotchNavigationPosition.allCases.map { $0.topInset(pageTop: 60, height: height) }
-            suite.expect(positions == positions.sorted() && positions.first! >= 60 && positions.last! + 44 <= height - 28,
-                         "all arrow positions stay below the header and above the lower curve at height \(height)")
-        }
-        for width: CGFloat in [360, 600] {
-            var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
-                                         safeAreaTop: 32, cameraWidth: 180,
-                                         layout: .custom, customWidth: Double(width), customHeight: 360)
-            let anchors: [CGFloat] = [NotchPageTop.none, .row, .wrapsCamera].map { top in
-                geometry.pageTop = top
-                return NotchNavigationPosition.top.topInset(pageTop: NotchSectionNavigation.headerBoundary(in: geometry), height: 280)
+        for top: CGFloat in [36, 80, 120] {
+            for height: CGFloat in [180, 280, 420] where height - top >= 44 {
+                let positions = ["top", "center", "bottom"].map {
+                    NotchNavigationStyle(position: $0).topInset(contentTop: top, contentBottom: height - 16, firstRowHeight: 64)
+                }
+                suite.expect(positions == positions.sorted() && positions.first! >= top
+                    && positions.last! + 44 <= height - 16,
+                    "dynamic arrow targets stay inside the actual visible body at every page height")
             }
-            suite.expect(Set(anchors).count == 1, "top arrow target is stable across different page headers at width \(width)")
         }
+        let toolsTop = NotchNavigationStyle().topInset(contentTop: 44, contentBottom: 240, firstRowHeight: 72)
+        let systemTop = NotchNavigationStyle().topInset(contentTop: 44, contentBottom: 300, firstRowHeight: 100)
+        suite.expect(toolsTop + 22 == 80 && systemTop + 22 == 94,
+            "Top follows the first row's visual center rather than a fixed common vertical coordinate")
+        suite.expect(NotchNavigationStyle(position: "top", offset: -25).topInset(contentTop: 44, contentBottom: 240, firstRowHeight: 72) == toolsTop,
+            "negative fine adjustments clamp before entering the header")
         let pages = ["system", "tools", "calendar"]
         suite.expect(NotchSectionNavigation.neighbor(of: "calendar", in: pages, forward: true) == "system",
                      "the last checked page wraps forward to the first")

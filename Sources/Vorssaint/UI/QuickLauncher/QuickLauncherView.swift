@@ -24,8 +24,12 @@ struct QuickLauncherView: View {
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var clipboardLimit = 50
 
+    @AppStorage(NotchPageAppearance.storageKey) private var appearanceData = Data()
+    private var appearance: NotchPageAppearance { .init(data: appearanceData) }
+    private var visibleItems: [QuickLauncherItem] { notchSize == nil ? launcher.visibleItems : launcher.islandItems }
+
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: notchSize == nil ? 10 : 6), count: notchSize == nil ? QuickLauncherService.columns : NotchSupport.toolColumns)
+        Array(repeating: GridItem(.flexible(), spacing: notchSize == nil ? 10 : 6), count: notchSize.map { appearance.toolsColumns > 0 ? appearance.toolsCapacity(width: $0.width) : NotchLayout.railColumns(count: visibleItems.count, rows: appearance.toolsRows(count: visibleItems.count, width: $0.width, height: $0.height)) } ?? QuickLauncherService.columns)
     }
 
     var body: some View {
@@ -39,7 +43,7 @@ struct QuickLauncherView: View {
             }
             if let utility = launcher.activeUtility, utility.feature.isAvailable {
                 hostedUtility(utility)
-            } else if launcher.visibleItems.isEmpty && !launcher.isEditing {
+            } else if visibleItems.isEmpty && !launcher.isEditing {
                 emptyState
             } else {
                 grid
@@ -48,7 +52,7 @@ struct QuickLauncherView: View {
                let optionsItem, hasQuickOptions(optionsItem) {
                 optionsCard(optionsItem)
             }
-            if launcher.activeUtility == nil, launcher.isEditing, !launcher.hiddenItems.isEmpty {
+            if launcher.activeUtility == nil, launcher.isEditing, !hiddenItems.isEmpty {
                 hiddenTray
             }
             if notchSize == nil { footer }
@@ -209,25 +213,34 @@ struct QuickLauncherView: View {
     /// tile in view.
     @ViewBuilder private var grid: some View {
         if let notchSize, !launcher.isEditing {
-            let rows = NotchLayout.railRows(count: launcher.visibleItems.count,
-                                            perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: NotchLayout.toolWidth,
-                                                                             spacing: NotchLayout.toolSpacing),
-                                            rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: notchSize.height)
-            let titleInset = NotchLayout.toolTitleInset(count: launcher.visibleItems.count, rows: rows, width: notchSize.width)
-            NotchRail(items: launcher.visibleItems, rows: rows, itemWidth: NotchLayout.toolWidth, width: notchSize.width,
-                      spacing: NotchLayout.toolSpacing, leastSpacing: NotchLayout.toolLeastSpacing,
-                      rowSpacing: NotchLayout.toolSpacing,
-                      scrollTarget: launcher.keyboardIndex.flatMap { index in
-                          launcher.visibleItems.indices.contains(index) ? launcher.visibleItems[index].id : nil
-                      }) { item in
-                cell(item, titleInset: titleInset).frame(height: NotchLayout.toolHeight)
+            let width = max(0, notchSize.width - appearance.toolsPadding * 2)
+            let rows = appearance.toolsRows(count: visibleItems.count, width: notchSize.width, height: notchSize.height)
+            if appearance.toolsColumns > 0 {
+                ScrollView {
+                    NotchRail(items: visibleItems, rows: rows, itemWidth: appearance.toolsWidth, width: width,
+                              spacing: appearance.toolsGap, rowSpacing: appearance.toolsRowGap,
+                              alignsLastRow: appearance.toolsAligned, columnCount: appearance.toolsCapacity(width: notchSize.width)) { item in
+                        cell(item).frame(height: appearance.toolsHeight)
+                    }.padding(appearance.toolsPadding)
+                }.scrollIndicators(.hidden).notchScrollEdgeFade()
+                    .frame(height: min(notchSize.height, CGFloat(rows) * (appearance.toolsHeight + appearance.toolsRowGap) - appearance.toolsRowGap + appearance.toolsPadding * 2))
+            } else {
+                let gap = NotchLayout.railGap(columns: NotchLayout.railColumns(count: visibleItems.count, rows: rows),
+                    itemWidth: appearance.toolsWidth, spacing: appearance.toolsGap, least: min(appearance.toolsGap, NotchLayout.toolLeastSpacing), width: width)
+                let titleInset = max(0, appearance.toolsGap - (gap ?? appearance.toolsGap)) / 2
+                NotchRail(items: visibleItems, rows: rows, itemWidth: appearance.toolsWidth, width: width,
+                          spacing: appearance.toolsGap, leastSpacing: min(appearance.toolsGap, NotchLayout.toolLeastSpacing),
+                          rowSpacing: appearance.toolsRowGap, alignsLastRow: appearance.toolsAligned,
+                          scrollTarget: launcher.keyboardIndex.flatMap { index in visibleItems.indices.contains(index) ? visibleItems[index].id : nil }) { item in
+                    cell(item, titleInset: titleInset).frame(height: appearance.toolsHeight)
+                }.padding(appearance.toolsPadding)
             }
         } else {
             LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
-                ForEach(launcher.visibleItems) { item in
+                ForEach(visibleItems) { item in
                     PanelReorderableItem(item: item,
                                          isEnabled: launcher.isEditing,
-                                         order: launcher.itemOrderBinding,
+                                         order: islandOrder,
                                          dragging: $draggingItem) {
                         cell(item)
                     }
@@ -240,7 +253,7 @@ struct QuickLauncherView: View {
     /// island's rail closes its gaps.
     @ViewBuilder
     private func cell(_ item: QuickLauncherItem, titleInset: CGFloat = 0) -> some View {
-        let index = launcher.visibleItems.firstIndex(of: item)
+        let index = visibleItems.firstIndex(of: item)
         let isSelected = !launcher.isEditing && index != nil && index == launcher.selectedIndex
         let isHovered = hoveredItem == item
 
@@ -262,16 +275,16 @@ struct QuickLauncherView: View {
                 ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: notchSize == nil ? 12 : 16, style: .continuous)
                         .fill(iconBackground(item, isSelected: isSelected, isHovered: isHovered))
-                        .frame(width: notchSize == nil ? 46 : 32, height: notchSize == nil ? 46 : 32)
+                        .frame(width: notchSize == nil ? 46 : 32 * appearance.toolsScale, height: notchSize == nil ? 46 : 32 * appearance.toolsScale)
                         .overlay(
                             Image(systemName: icon(for: item))
-                                .font(.system(size: notchSize == nil ? 19 : 16, weight: .semibold))
+                                .font(.system(size: notchSize == nil ? 19 : 16 * appearance.toolsScale, weight: .semibold))
                                 .foregroundStyle(iconColor(item))
                         )
                     if launcher.isEditing {
                         Button {
                             withAnimation(.easeOut(duration: 0.15)) {
-                                launcher.setHidden(item, true)
+                                hideItem(item)
                             }
                         } label: {
                             Image(systemName: "minus.circle.fill")
@@ -286,7 +299,7 @@ struct QuickLauncherView: View {
                             Image(systemName: "gearshape.circle.fill")
                                 .font(.system(size: 14))
                                 .foregroundStyle(.white, optionsItem == item ? Color.accentColor : Color.secondary)
-                                .frame(width: notchSize == nil ? 46 : 32, height: notchSize == nil ? 46 : 32, alignment: .topLeading)
+                                .frame(width: notchSize == nil ? 46 : 32 * appearance.toolsScale, height: notchSize == nil ? 46 : 32 * appearance.toolsScale, alignment: .topLeading)
                                 .offset(x: -7, y: -7)
                                 .help(l10n.s.menuSettings)
                                 .allowsHitTesting(false)
@@ -312,13 +325,15 @@ struct QuickLauncherView: View {
                         }
                     }
                 }
+                if notchSize == nil || appearance.toolsLabels || launcher.isEditing {
                 Text(title(for: item))
-                    .font(.system(size: notchSize == nil ? 10.5 : 10, weight: .medium))
+                    .font(.system(size: notchSize == nil ? 10.5 : appearance.toolsFont, weight: .medium))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, titleInset)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, notchSize == nil ? 9 : 4)
@@ -338,12 +353,33 @@ struct QuickLauncherView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title(for: item))
+        .notchFastHelp(notchSize != nil && !appearance.toolsLabels ? title(for: item) : "")
         .onHover { hovering in
             hoveredItem = hovering ? item : (hoveredItem == item ? nil : hoveredItem)
             if hovering, !launcher.isEditing {
-                launcher.select(item)
+                launcher.select(item, items: visibleItems)
             }
         }
+    }
+
+    private var islandOrder: Binding<[QuickLauncherItem]> {
+        guard notchSize != nil else { return launcher.itemOrderBinding }
+        return Binding(get: { visibleItems }, set: { items in
+            var next = appearance; next.values["tools.items"] = items.map(\.rawValue).joined(separator: ","); appearanceData = next.encoded
+            launcher.objectWillChange.send(); NotchService.shared.syncWithPreferences()
+        })
+    }
+    private func hideItem(_ item: QuickLauncherItem) {
+        guard notchSize != nil else { launcher.setHidden(item, true); return }
+        islandOrder.wrappedValue = visibleItems.filter { $0 != item }
+    }
+
+    private var hiddenItems: [QuickLauncherItem] {
+        notchSize == nil ? launcher.hiddenItems : QuickLauncherItem.allCases.filter { $0.feature.isAvailable && !visibleItems.contains($0) }
+    }
+    private func showItem(_ item: QuickLauncherItem) {
+        guard notchSize != nil else { launcher.setHidden(item, false); return }
+        islandOrder.wrappedValue = visibleItems + [item]
     }
 
     private var hiddenTray: some View {
@@ -353,10 +389,10 @@ struct QuickLauncherView: View {
                 .foregroundStyle(.secondary)
                 .tracking(0.5)
             FlowLayoutLite(spacing: 6) {
-                ForEach(launcher.hiddenItems) { item in
+                ForEach(hiddenItems) { item in
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
-                            launcher.setHidden(item, false)
+                            showItem(item)
                         }
                     } label: {
                         Label(title(for: item), systemImage: "plus.circle.fill")
@@ -600,4 +636,31 @@ struct FlowLayoutLite: Layout {
             rowHeight = max(rowHeight, size.height)
         }
     }
+}
+
+extension QuickLauncherItem {
+    func islandTitle(_ l10n: L10n) -> String {
+        switch self {
+        case .keepAwake: return l10n.s.keepAwakeTitle
+        case .toggles: return FeatureStrings.quickToggles(l10n.language).pageTitle
+        case .micMute: return MicMuteService.shared.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
+        case .screenOCR: return l10n.s.ocrName
+        case .colorPicker: return l10n.s.colorPickerName
+        case .clipboard: return FeatureStrings.clipboard(l10n.language).title
+        case .windowLayout: return FeatureStrings.windowLayout(l10n.language).title
+        case .cleaning: return l10n.s.cleaningMenuItem
+        case .homebrew: return l10n.s.homebrewName
+        case .media: return l10n.s.mediaName
+        case .urlCleaner: return l10n.s.urlCleanerName
+        case .uninstaller: return l10n.s.uninstallerName
+        case .cleaner: return l10n.s.cleanerName
+        case .screenshot: return FeatureStrings.screenshot(l10n.language).pageTitle
+        case .screenRecorder:
+            let strings = FeatureStrings.recorder(l10n.language)
+            return ScreenRecorderService.shared.isRecording ? strings.stopButton : strings.pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
+        }
+    }
+
 }

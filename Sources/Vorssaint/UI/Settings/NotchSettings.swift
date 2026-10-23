@@ -330,13 +330,15 @@ struct NotchSettings: View {
                         SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: moduleFeature(module))
                     }
                     if !wide { preview(width: detailWidth, limit: 280) }
-                    NotchNavigationSettings()
                     if available, module == .system { NotchSystemLayoutSettings() }
+                    if available, [.system, .tools, .controls].contains(module) { NotchPageAppearanceSettings(module: module) }
                     if available, hasOptions(module) {
                         SettingsCard { moduleOptions(module) }
-                    } else if available, module != .system {
+                    } else if available, ![.system, .tools].contains(module) {
                         Text(editor.noOptions).font(.callout).foregroundStyle(.secondary)
                     }
+                    NotchNavigationSettings(module: module)
+                    NotchPagePresetSettings()
                 }
                 .padding(.bottom, 22)
             }
@@ -400,19 +402,23 @@ struct NotchSettings: View {
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
         case .controls:
-            let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight]
-            HStack(spacing: 10) {
+            let primary = orderedAllControls.filter { $0.isLevel || $0 == .music }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
                 ForEach(primary) { item in
+                    PanelReorderableItem(item: item,
+                        order: Binding(get: { orderedAllControls }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
+                        dragging: $draggingControl) {
                     toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
                                reason: controlReason(item), reservesReason: !primary.allSatisfy { $0.isAvailable() },
                                unavailableAction: controlUnavailableAction(item))
+                    }
                 }
             }
             Text(text.controlShortcuts).font(.subheadline.weight(.medium))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
                 ForEach(orderedShortcuts) { item in
                     PanelReorderableItem(item: item,
-                        order: Binding(get: { orderedShortcuts }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
+                        order: Binding(get: { orderedShortcuts }, set: { controlOrder = (orderedAllControls.filter { $0.isLevel || $0 == .music } + $0).map(\.rawValue).joined(separator: ",") }),
                         dragging: $draggingControl) {
                         toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
                                    reason: controlReason(item), reservesReason: !orderedShortcuts.allSatisfy { $0.isAvailable() },
@@ -1029,6 +1035,11 @@ struct NotchSettings: View {
                 .accessibilityValue(formatted)
             Text(formatted).monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }
+    }
+    private var orderedAllControls: [NotchControlItem] {
+        let stored = controlOrder.split(separator: ",").compactMap { NotchControlItem(rawValue: String($0)) }
+        var seen = Set<NotchControlItem>()
+        return (stored + NotchControlItem.allCases).filter { seen.insert($0).inserted }
     }
     private var orderedShortcuts: [NotchControlItem] {
         let stored = controlOrder.split(separator: ",").compactMap { NotchControlItem(rawValue: String($0)) }

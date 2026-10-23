@@ -36,7 +36,7 @@ private struct NotchFastHelp: ViewModifier {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: visible)
             .onHover { entered in
                 pending?.cancel()
-                if entered {
+                if entered && !title.isEmpty {
                     pending = Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 120_000_000)
                         guard !Task.isCancelled else { return }
