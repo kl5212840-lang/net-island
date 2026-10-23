@@ -242,6 +242,10 @@ enum NotchNetworkProbe {
                    scroll.scrollerStyle != .overlay || abs(scroll.contentView.frame.width - scroll.bounds.width) > 1 {
                     failures.append("\(name) retains an asymmetric native scrollbar gutter")
                 }
+                if let scroll = view as? NSScrollView, name.contains("system") || name.hasPrefix("arrows-"),
+                   let document = scroll.documentView, abs(document.frame.width - scroll.contentView.bounds.width) > 1 {
+                    failures.append("\(name) retains a narrower System document: \(document.frame.width) / \(scroll.contentView.bounds.width)")
+                }
                 for child in view.subviews { inspect(child) }
             }
             inspect(host)

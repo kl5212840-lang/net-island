@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct NotchSystemView: View {
@@ -121,11 +122,13 @@ struct NotchSystemView: View {
                                                spacing: style.verticalSpacing) + inset * 2
             Group {
                 if height > size.height {
-                    ScrollView {
-                        grid(cards: cards, rows: rows).padding(inset)
+                    NotchSystemScrollView {
+                        grid(cards: cards, rows: rows)
+                            .frame(width: max(0, size.width - inset * 2))
+                            .padding(inset)
                             .contentShape(Rectangle())
                     }
-                    .scrollIndicators(.hidden)
+                    .frame(width: size.width, height: size.height)
                     .notchScrollEdgeFade(length: 12)
                 } else {
                     grid(cards: cards, rows: rows).padding(inset)
@@ -179,5 +182,40 @@ struct NotchSystemView: View {
 
     private func percent(_ value: Double?) -> String? {
         value.flatMap { $0.isFinite ? "\(Int((min(1, max(0, $0)) * 100).rounded()))%" : nil }
+    }
+}
+
+/// SwiftUI's legacy-scroller bridge can enlarge its native viewport by one
+/// scroller width even after indicators are hidden. Own this small vertical
+/// viewport so its document is always exactly as wide as the visible area.
+private struct NotchSystemScrollView<Content: View>: NSViewRepresentable {
+    @ViewBuilder let content: Content
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.scrollerStyle = .overlay
+        scroll.hasVerticalScroller = false
+        scroll.hasHorizontalScroller = false
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.horizontalScrollElasticity = .none
+        let host = NSHostingView(rootView: AnyView(content.environment(\.self, context.environment)))
+        host.translatesAutoresizingMaskIntoConstraints = false
+        scroll.documentView = host
+        let clip = scroll.contentView
+        NSLayoutConstraint.activate([
+            host.topAnchor.constraint(equalTo: clip.topAnchor),
+            host.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+            host.widthAnchor.constraint(equalTo: clip.widthAnchor)
+        ])
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let host = scroll.documentView as? NSHostingView<AnyView> else { return }
+        host.rootView = AnyView(content.environment(\.self, context.environment))
+        host.invalidateIntrinsicContentSize()
     }
 }
