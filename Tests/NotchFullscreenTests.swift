@@ -52,6 +52,7 @@ enum NotchFullscreenTests {
         static func topology() -> Topology? { reads += 1; return value }
     }
     class State {
+        var yieldingToMenuBar = false
         var running = true, suspended = false, hiddenInFullscreen = false
         var hoverEmphasized = false
         var panel: Bool? = true

@@ -65,15 +65,21 @@ struct NotchNetworkWing: View {
     @AppStorage(DefaultsKey.networkSpeedUnit) private var unit = NetworkSpeedUnit.bytes
 
     var body: some View {
-        NotchNetworkReadout(bytesPerSecond: upload ? monitor.snapshot.netUpBytesPerSec : monitor.snapshot.netDownBytesPerSec,
-                            upload: upload, inBits: unit == .bits, fontSize: style.fontSize, fullUnits: style.fullUnits,
-                            decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
-                            opacity: style.opacity, arrowGap: style.arrowGap,
-                            downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
-            .frame(maxWidth: .infinity, alignment: style.readingAlignment(leadingSide: leadingSide))
-            .padding(.leading, leadingSide ? style.outerSpacing : style.innerSpacing)
-            .padding(.trailing, leadingSide ? style.innerSpacing : style.outerSpacing)
-            .offset(y: style.offset(in: bodyHeight))
+        GeometryReader { proxy in
+            let rate = upload ? monitor.snapshot.netUpBytesPerSec : monitor.snapshot.netDownBytesPerSec
+            let reading = NotchNetworkFormat.reading(rate, inBits: unit == .bits, fullUnits: style.fullUnits, decimals: style.decimals)
+            let size = style.fittedFontSize(reading: reading, available: max(0, proxy.size.width - style.outerSpacing - style.innerSpacing))
+            NotchNetworkReadout(bytesPerSecond: rate, upload: upload, inBits: unit == .bits,
+                                fontSize: size, fullUnits: style.fullUnits, decimals: style.decimals,
+                                weight: style.fontWeight, tint: style.tint, opacity: style.opacity, arrowGap: style.arrowGap,
+                                downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: style.readingAlignment(leadingSide: leadingSide))
+                .padding(.leading, leadingSide ? style.outerSpacing : style.innerSpacing)
+                .padding(.trailing, leadingSide ? style.innerSpacing : style.outerSpacing)
+                .offset(y: style.offset(in: bodyHeight))
+        }
+        .frame(height: bodyHeight)
     }
 }
 

@@ -8,6 +8,7 @@ import SwiftUI
 
 enum NotchTests {
     private static func pageAppearanceContracts(_ suite: TestSuite) {
+        menuYieldAndFixedWidthContracts(suite)
         controlGridContracts(suite)
         controlsEditingContracts(suite)
         let narrow = NotchNetworkStyle(fontSize: 9, wingWidth: 24, fullUnits: true)
@@ -84,6 +85,66 @@ enum NotchTests {
         suite.expect(!restored.accepts(" 工作 ") && restored.accepts("另一个")
             && NotchPagePresetLibrary(data: Data([0xff])).encoded == nil,
             "preset names remain unique and malformed libraries cannot be silently overwritten")
+    }
+
+    private static func menuYieldAndFixedWidthContracts(_ suite: TestSuite) {
+        var state = NotchMenuYieldState()
+        state.begin(now: 1)
+        suite.expect(state.hidden, "a menu-bar click yields immediately without consuming the click")
+        state.sample(open: true, pointerInBar: true, now: 2)
+        state.sample(open: true, pointerInBar: false, now: 200)
+        suite.expect(state.hidden, "an expanded native menu bar stays clear without an arbitrary timeout")
+        state.sample(open: false, pointerInBar: true, now: 201)
+        suite.expect(state.hidden, "menu handoffs do not flash the island")
+        state.sample(open: true, pointerInBar: true, now: 201.1)
+        state.sample(open: false, pointerInBar: true, now: 202)
+        state.sample(open: false, pointerInBar: true, now: 202.4)
+        suite.expect(!state.hidden, "closing the final menu restores the island even if the pointer stays in the bar")
+        state.begin(now: 203)
+        state.sample(open: false, pointerInBar: true, now: 204)
+        suite.expect(state.hidden, "the blank-area shortcut keeps the bar usable while the pointer remains there")
+        state.sample(open: false, pointerInBar: false, now: 205)
+        state.sample(open: false, pointerInBar: false, now: 205.4)
+        suite.expect(!state.hidden, "leaving an unused blank-area shortcut restores automatically")
+        state.begin(now: 210); state.dismiss(); state.sample(open: false, pointerInBar: true, now: 211)
+        state.sample(open: false, pointerInBar: true, now: 211.4)
+        suite.expect(!state.hidden, "Escape or an outside click also finishes a blank-area session")
+        for units in [false, true] {
+            for decimals in 0...2 {
+                let style = NotchNetworkStyle(fontSize: 12, wingWidth: 120, fullUnits: units, decimals: decimals, fixedWidth: true)
+                var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 300)
+                geometry.networkStyle = style
+                geometry.networkInBits = true
+                let width = geometry.resolvedNetworkWidth
+                let rates: [Double] = [0, 999, 1023.99 * 1024, 999 * 1024 * 1024, Double(UInt64.max)]
+                for rate in rates {
+                    geometry.networkRequiredWidth = style.requiredWidth(download: rate, upload: rate, inBits: true) + 50
+                    suite.expect(geometry.resolvedNetworkWidth == width, "fixed outer width ignores live readings and old width-hold maxima")
+                    let font = style.fittedFontSize(reading: NotchNetworkFormat.reading(rate, inBits: true, fullUnits: units, decimals: decimals), available: width - 16)
+                    suite.expect(font >= 8 && font <= 12 && style.measuredWidth(reading: NotchNetworkFormat.reading(rate, inBits: true, fullUnits: units, decimals: decimals), fontSize: font) <= width - 16, "fixed readouts stay legible within the existing safe wing")
+                }
+            }
+        }
+        let domain = "net-island.fixed-width.contract"
+        let prefs = UserDefaults(suiteName: domain)!
+        defer { prefs.removePersistentDomain(forName: domain) }
+        prefs.set(true, forKey: DefaultsKey.notchNetworkFullUnits)
+        prefs.set(2, forKey: DefaultsKey.notchNetworkDecimals)
+        prefs.set("bits", forKey: DefaultsKey.networkSpeedUnit)
+        prefs.set(true, forKey: DefaultsKey.notchNetworkFixedWidth)
+        let preset = NotchNetworkPreset.capture(name: "fixed", in: prefs)
+        prefs.set(false, forKey: DefaultsKey.notchNetworkFixedWidth)
+        preset.apply(in: prefs)
+        suite.expect(prefs.bool(forKey: DefaultsKey.notchNetworkFixedWidth)
+            && prefs.integer(forKey: DefaultsKey.notchNetworkDecimals) == 2
+            && prefs.bool(forKey: DefaultsKey.notchNetworkFullUnits)
+            && prefs.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", "fixed width round-trips through presets with exact units and decimal settings")
+        let old = NotchNetworkStyle(fontSize: 9, fullUnits: true, decimals: 2)
+        var object = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as! [String: Any]
+        object.removeValue(forKey: "fixedWidth")
+        let restored = try? JSONDecoder().decode(NotchNetworkStyle.self, from: JSONSerialization.data(withJSONObject: object))
+        suite.expect(restored?.usesFixedWidth == false && restored?.fullUnits == true && restored?.decimals == 2,
+            "old preset payloads remain readable without changing their precision or units")
     }
 
     private static func controlGridContracts(_ suite: TestSuite) {

@@ -22,6 +22,7 @@ struct NotchNetworkPreset: Codable, Equatable, Identifiable {
         // Reuse the live style normalizer, including its fitted minimum width.
         let s = normalizedStyle
         let values: [String: Any] = [
+            DefaultsKey.notchNetworkFixedWidth: s.usesFixedWidth,
             DefaultsKey.notchNetworkFontSize: Double(s.fontSize), DefaultsKey.notchNetworkWidth: Double(s.wingWidth),
             DefaultsKey.notchNetworkOffset: Double(s.verticalOffset), DefaultsKey.notchNetworkUploadOnLeft: s.uploadOnLeft,
             DefaultsKey.notchNetworkFullUnits: s.fullUnits, DefaultsKey.notchNetworkDecimals: s.decimals,
@@ -41,7 +42,7 @@ struct NotchNetworkPreset: Codable, Equatable, Identifiable {
               uploadOnLeft: style.uploadOnLeft, fullUnits: style.fullUnits, decimals: style.decimals, weight: style.weight,
               tint: style.tint, opacity: style.opacity, alignment: style.alignment, arrowGap: Double(style.arrowGap),
               downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope,
-              outerSpacing: Double(style.outerSpacing), innerSpacing: Double(style.innerSpacing))
+              outerSpacing: Double(style.outerSpacing), innerSpacing: Double(style.innerSpacing), fixedWidth: style.usesFixedWidth)
     }
 
     func matches(in defaults: UserDefaults = .standard) -> Bool {

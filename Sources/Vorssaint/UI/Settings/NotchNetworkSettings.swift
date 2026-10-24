@@ -24,6 +24,8 @@ struct NotchNetworkSettings: View {
     @State private var behaviorExpanded: Bool
     @AppStorage(DefaultsKey.notchNetworkPaused) private var paused = false
     @AppStorage(DefaultsKey.notchNetworkFontSize) private var fontSize = 10.0
+    @AppStorage(DefaultsKey.notchNetworkFixedWidth) private var fixedWidth = false
+    @AppStorage(DefaultsKey.notchMenuYield) private var menuYield = true
     @AppStorage(DefaultsKey.notchNetworkWidth) private var width = 72.0
     @AppStorage(DefaultsKey.notchNetworkOffset) private var offset = 0.0
     @AppStorage(DefaultsKey.notchNetworkUploadOnLeft) private var uploadOnLeft = false
@@ -36,9 +38,9 @@ struct NotchNetworkSettings: View {
     private var text: NotchNetworkStrings { .init(l10n.language) }
     private var style: NotchNetworkStyle { .init(fontSize: fontSize, wingWidth: width, verticalOffset: offset, uploadOnLeft: uploadOnLeft, fullUnits: fullUnits,
         decimals: decimals, weight: weight, tint: tint, opacity: opacity, alignment: alignment, arrowGap: arrowGap,
-        downloadColor: downloadColor, uploadColor: uploadColor, colorScope: colorScope, outerSpacing: outerSpacing, innerSpacing: innerSpacing) }
+        downloadColor: downloadColor, uploadColor: uploadColor, colorScope: colorScope, outerSpacing: outerSpacing, innerSpacing: innerSpacing, fixedWidth: fixedWidth) }
     private var signature: [String] {
-        [String(paused), String(fullUnits), String(decimals), weight, tint, downloadColor, uploadColor, colorScope, String(opacity), alignment, String(arrowGap), String(outerSpacing), String(innerSpacing), String(fontSize), String(width), String(offset), String(uploadOnLeft),
+        [String(menuYield), String(fixedWidth), String(paused), String(fullUnits), String(decimals), weight, tint, downloadColor, uploadColor, colorScope, String(opacity), alignment, String(arrowGap), String(outerSpacing), String(innerSpacing), String(fontSize), String(width), String(offset), String(uploadOnLeft),
          String(avoidMenus), String(autoHide), String(threshold), String(delay), String(capsuleDrop)]
     }
 
@@ -122,6 +124,14 @@ struct NotchNetworkSettings: View {
             SettingsCard {
                 DisclosureGroup(text.chinese ? "尺寸、对齐与留白" : "Size, alignment and padding", isExpanded: $appearanceExpanded) {
                     VStack(alignment: .leading, spacing: 14) {
+                    Picker(text.chinese ? "宽度模式" : "Width mode", selection: $fixedWidth) {
+                        Text(text.chinese ? "自适应（原版）" : "Adaptive (original)").tag(false)
+                        Text(text.chinese ? "固定宽度" : "Fixed width").tag(true)
+                    }.pickerStyle(.menu)
+                    Text(text.chinese
+                        ? (fixedWidth ? "外框不随网速变化。读数在可用空间内缩小字号，始终保留所选单位和小数位；不会跨入刘海。" : "读数变长时对称扩宽，持续较短读数保持 15 秒后收紧。")
+                        : (fixedWidth ? "The outline stays fixed. Readings fit inside the available space, retaining your units and decimal places, clear of the camera." : "Longer readings expand both sides. Smaller readings must persist for 15 seconds before shrinking."))
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Picker(text.alignment, selection: $alignment) {
                         Text(text.leading).tag("leading"); Text(text.center).tag("center"); Text(text.trailing).tag("trailing")
                         Text(text.outside).tag("outside")
@@ -131,14 +141,14 @@ struct NotchNetworkSettings: View {
                     slider(text.outerSpacing, value: $outerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.outerSpacing)) pt")
                     slider(text.innerSpacing, value: $innerSpacing, range: 0...24, step: 1, valueText: "\(Int(style.innerSpacing)) pt")
                     slider(text.gap, value: $arrowGap, range: 2...10, step: 1, valueText: "\(Int(style.arrowGap)) pt")
-                    slider(text.chinese ? "目标每侧宽度" : "Target width per side", value: $width,
-                           range: Double(NotchNetworkStyle.minimumWidth(fontSize: style.fontSize, fullUnits: fullUnits,
-                                                                        decimals: decimals, arrowGap: arrowGap, outerSpacing: outerSpacing, innerSpacing: innerSpacing))...240,
-                           step: 1, valueText: "\(Int(style.wingWidth)) pt")
+                    slider(text.chinese ? (fixedWidth ? "固定每侧宽度" : "目标每侧宽度") : (fixedWidth ? "Fixed width per side" : "Target width per side"), value: $width,
+                           range: max(Double(NotchNetworkStyle.minimumWidth(fontSize: style.fontSize, fullUnits: fullUnits,
+                                                                        decimals: decimals, arrowGap: arrowGap, outerSpacing: outerSpacing, innerSpacing: innerSpacing)), fixedWidth ? Double(style.fixedMinimumWidth(inBits: unit == .bits, curveInset: service.geometry.floats ? 8 : 16)) : 0)...240,
+                           step: 1, valueText: "\(Int(fixedWidth ? max(style.wingWidth, style.fixedMinimumWidth(inBits: unit == .bits, curveInset: service.geometry.floats ? 8 : 16)) : style.wingWidth)) pt")
                     Text((text.chinese ? "当前实际每侧宽度：" : "Current actual width per side: ") + "\(Int(service.geometry.resolvedNetworkWidth.rounded())) pt")
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     slider(text.offset, value: $offset, range: -3...3, step: 1, valueText: "\(Int(style.verticalOffset)) pt")
-                    Text(text.chinese ? "下限按当前字号与最短读数计算，可继续收窄。实际读数变长时会对称扩展，连续较短读数保持15秒后再收紧；刘海和圆角安全区始终保留。" : "The lower bound follows the font and shortest reading. Longer readings expand both sides symmetrically; smaller readings must persist for 15 seconds before shrinking. Camera and corner clearances remain protected.").font(.caption).foregroundStyle(.secondary)
+                    Text(text.chinese ? (fixedWidth ? "固定模式下限预留完整读数在 8 pt 时的空间，不随实时流量变化。保存的目标宽度不变；低于安全下限时，实际宽度使用安全下限。" : "下限按当前字号与最短读数计算；刘海和圆角安全区始终保留。") : (fixedWidth ? "The fixed minimum reserves complete readings at 8 pt and never follows live traffic. A saved target below that minimum is retained; the safe minimum is used on screen." : "The lower bound follows the font and shortest reading. Camera and corner clearances remain protected.")).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Toggle(text.uploadOnLeft, isOn: $uploadOnLeft)
                     if service.geometry.floats {
@@ -151,6 +161,9 @@ struct NotchNetworkSettings: View {
             SettingsCard {
             DisclosureGroup(text.behavior, isExpanded: $behaviorExpanded) {
                 VStack(alignment: .leading, spacing: 16) {
+                    Toggle(text.chinese ? "使用菜单栏时临时避让" : "Temporarily yield to the menu bar", isOn: $menuYield)
+                    Text(text.chinese ? "点击应用菜单、原生展开按钮或岛左侧空白处时暂时隐藏；菜单收起后自动恢复。仅点击空白处时，移出菜单栏、点击别处或按 Esc 即恢复。不会停止网速采集或修改预设。需要现有的辅助功能权限。" : "Hide while using app menus, the native overflow button, or blank space to the island’s left. Restore after menus close. A blank-space session ends on leaving the bar, clicking elsewhere, or Escape. Sampling and presets stay intact. Requires Accessibility access.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Toggle(text.avoidMenus, isOn: $avoidMenus)
                     Text(text.avoidHint).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -179,6 +192,7 @@ struct NotchNetworkSettings: View {
     }
 
     private func resetAppearance() {
+        fixedWidth = false
         fontSize = 10; width = 72; offset = 0; uploadOnLeft = false
         decimals = 1; weight = "medium"; tint = "white"; opacity = 0.9; alignment = "center"; arrowGap = 3
         outerSpacing = 0; innerSpacing = 0
@@ -212,7 +226,8 @@ struct NotchNetworkSettings: View {
     }
 
     private var previewWingWidth: CGFloat {
-        max(style.wingWidth, style.requiredWidth(download: 1_234_567, upload: 345_678, inBits: unit == .bits))
+        style.usesFixedWidth ? max(style.wingWidth, style.fixedMinimumWidth(inBits: unit == .bits))
+            : max(style.wingWidth, style.requiredWidth(download: 1_234_567, upload: 345_678, inBits: unit == .bits))
     }
     private var layoutPreview: some View {
         GeometryReader { proxy in
@@ -240,8 +255,11 @@ struct NotchNetworkSettings: View {
     }
 
     private func sample(upload: Bool, leading: Bool) -> some View {
-        NotchNetworkReadout(bytesPerSecond: upload ? 345_678 : 1_234_567, upload: upload,
-                            inBits: unit == .bits, fontSize: style.fontSize, fullUnits: fullUnits,
+        let rate = upload ? 345_678.0 : 1_234_567.0
+        let reading = NotchNetworkFormat.reading(rate, inBits: unit == .bits, fullUnits: fullUnits, decimals: decimals)
+        let font = style.fittedFontSize(reading: reading, available: previewWingWidth - 16 - outerSpacing - innerSpacing)
+        return NotchNetworkReadout(bytesPerSecond: rate, upload: upload,
+                            inBits: unit == .bits, fontSize: font, fullUnits: fullUnits,
                             decimals: style.decimals, weight: style.fontWeight, tint: style.tint,
                             opacity: style.opacity, arrowGap: style.arrowGap,
                             downloadColor: style.downloadColor, uploadColor: style.uploadColor, colorScope: style.colorScope)

@@ -280,6 +280,8 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var yieldingToMenuBar = false
+        func syncMenuYieldMonitoring() {}
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -425,6 +427,21 @@ enum NotchPresentationRefreshContract {
             UserDefaults.standard.hides = false
             UserDefaults.standard.outline = false
         }
+        let yielding = Service()
+        yielding.expanded = true
+        yielding.idleContent = .network
+        yielding.refreshPresentation(animated: false)
+        let selectedPage = yielding.selected
+        let sizeBefore = yielding.windowHost?.targetSize
+        let leasesBefore = yielding.consumerSyncs
+        yielding.yieldingToMenuBar = true
+        yielding.refreshPresentation(animated: false)
+        suite.expect(yielding.panel?.isVisible == false && yielding.expanded && yielding.selected == selectedPage
+            && yielding.consumerSyncs == leasesBefore, "temporary menu yield hides only presentation and retains page and sampling demand")
+        yielding.yieldingToMenuBar = false
+        yielding.refreshPresentation(animated: false)
+        suite.expect(yielding.panel?.isVisible == true && yielding.windowHost?.targetSize == sizeBefore
+            && yielding.selected == selectedPage, "finishing a menu restores the same island surface")
         let network = Service()
         network.idleContent = .network
         network.expanded = false

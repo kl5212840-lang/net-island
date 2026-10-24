@@ -178,6 +178,18 @@ final class NotchService: ObservableObject {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var eventMonitors: [Any] = []
+    @Published private(set) var yieldingToMenuBar = false
+    private lazy var menuYieldMonitor: NotchMenuYieldMonitor = {
+        let monitor = NotchMenuYieldMonitor()
+        monitor.didChange = { [weak self] hidden in
+            guard let self, self.yieldingToMenuBar != hidden else { return }
+            self.yieldingToMenuBar = hidden
+            self.hoverWork?.cancel()
+            if hidden { self.inside = false; self.hoverState.update(pointerInside: false) }
+            self.refreshPresentation(animated: false)
+        }
+        return monitor
+    }()
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
@@ -491,12 +503,14 @@ final class NotchService: ObservableObject {
     private func receiveNetworkSample(_ snapshot: SystemSnapshot) {
         guard running, !suspended, NotchNetworkSupport.isEnabled() else { return }
         var needsRefresh = false
-        let required = geometry.networkStyle.requiredWidth(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
-            inBits: UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", curveInset: geometry.floats ? 8 : 16)
-        let held = networkWidthHold.update(required: required, now: ProcessInfo.processInfo.systemUptime)
-        if max(geometry.networkStyle.wingWidth, held) != geometry.resolvedNetworkWidth {
-            var next = geometry; next.networkRequiredWidth = held; geometry = next
-            needsRefresh = true
+        if !geometry.networkStyle.usesFixedWidth {
+            let required = geometry.networkStyle.requiredWidth(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
+                inBits: UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits", curveInset: geometry.floats ? 8 : 16)
+            let held = networkWidthHold.update(required: required, now: ProcessInfo.processInfo.systemUptime)
+            if max(geometry.networkStyle.wingWidth, held) != geometry.resolvedNetworkWidth {
+                var next = geometry; next.networkRequiredWidth = held; geometry = next
+                needsRefresh = true
+            }
         }
         if UserDefaults.standard.bool(forKey: DefaultsKey.notchNetworkAutoHide) {
             let visible = networkActivity.update(download: snapshot.netDownBytesPerSec, upload: snapshot.netUpBytesPerSec,
@@ -1135,7 +1149,7 @@ final class NotchService: ObservableObject {
     var presentationWindow: NSPanel? { panel }
     /// User actions can open the island even when automatic full-screen feedback is hidden.
     var acceptsUserInteraction: Bool {
-        running && !suspended && panel != nil
+        running && !suspended && !yieldingToMenuBar && panel != nil
             && windowHost?.isConcealedForMissionControl != true
     }
     var acceptsSystemFeedback: Bool {
@@ -1325,6 +1339,8 @@ final class NotchService: ObservableObject {
     }
 
     private func tearDownPresentation() {
+        menuYieldMonitor.stop()
+        yieldingToMenuBar = false
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         nextMascotVisitWork?.cancel(); nextMascotVisitWork = nil
         mascotVisitWork?.cancel(); mascotVisitWork = nil
@@ -1600,7 +1616,7 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenAtRestInFullscreen || watchesHiddenHover else { removeHoverExitMonitors(); return }
+        guard running, !suspended, !yieldingToMenuBar, !hiddenAtRestInFullscreen || watchesHiddenHover else { removeHoverExitMonitors(); return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         let showedPicker = showsCompactActivityPicker
@@ -2700,6 +2716,13 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        syncMenuYieldMonitoring()
+        if yieldingToMenuBar {
+            windowHost?.hide(animated: false)
+            removeScreenEdgeClickMonitors()
+            syncMirrors()
+            return
+        }
         // A notice with a new reading, or the music strip naming its song,
         // fits its new width in place.
         let fitsInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
@@ -3158,7 +3181,7 @@ final class NotchService: ObservableObject {
     /// it shows closed. The copies are drawn for their own displays, a
     /// capsule or a notch, and they take no part in hovering or notices.
     private func syncMirrors() {
-        guard showsOnAllDisplays, running, !suspended, windowHost != nil else { closeMirrors(); return }
+        guard showsOnAllDisplays, running, !suspended, !yieldingToMenuBar, windowHost != nil else { closeMirrors(); return }
         let screens = NSScreen.screens
         for (id, mirror) in mirrors where !screens.contains(where: { $0.notchDisplayID == id }) {
             mirror.host.close()
@@ -3276,6 +3299,19 @@ final class NotchService: ObservableObject {
             self.move(to: screen)
             if self.compactActivity == .calendar { self.openCountdownEvent() } else { self.open() }
         }
+    }
+
+    private func syncMenuYieldMonitoring() {
+        let enabled = UserDefaults.standard.object(forKey: DefaultsKey.notchMenuYield) as? Bool ?? true
+        guard enabled, running, !suspended, !hiddenInFullscreen, displayHasMenuBar,
+              captureControls == nil, !NotchControlsEditor.shared.isEditing, let panel else {
+            menuYieldMonitor.configure(nil)
+            return
+        }
+        menuYieldMonitor.configure(.init(screen: geometry.screen, barHeight: geometry.menuBarHeight,
+            island: geometry.frame(for: surfaceSize),
+            ownWindows: panel.windowNumber > 0 ? islandWindowIDs.union([CGWindowID(panel.windowNumber)]) : islandWindowIDs,
+            primaryTop: NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY))
     }
 
     private var screenEdgeClickArea: CGRect? {
@@ -3586,6 +3622,7 @@ final class NotchService: ObservableObject {
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                              barEdge: 1 / max(1, screen.backingScaleFactor))
+        result.networkInBits = UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == "bits"
         result.networkStyle = .stored()
         let snapshot = SystemMonitor.shared.snapshot
         result.networkRequiredWidth = max(networkWidthHold.width, result.networkStyle.requiredWidth(

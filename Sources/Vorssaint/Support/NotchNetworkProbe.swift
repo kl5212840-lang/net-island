@@ -61,6 +61,54 @@ enum NotchNetworkProbe {
         do { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true) }
         catch { print("NETWORK ISLAND FAILED: \(error)"); exit(1) }
 
+        if arguments.contains("--menu-fixed-only") {
+            overrides[DefaultsKey.notchNetworkFixedWidth] = true
+            overrides[DefaultsKey.notchMenuYield] = true
+            overrides[DefaultsKey.notchNetworkFullUnits] = true
+            overrides[DefaultsKey.notchNetworkDecimals] = 2
+            overrides[DefaultsKey.notchNetworkWidth] = 72.0
+            overrides[DefaultsKey.notchNetworkFontSize] = 12.0
+            overrides[DefaultsKey.notchNetworkTint] = "direction"
+            UserDefaults.standard.setVolatileDomain(overrides, forName: UserDefaults.argumentDomain)
+            var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
+                safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 300)
+            geometry.networkStyle = .stored()
+            NotchService.shared.prepareNetworkProbe(geometry: geometry, expanded: false)
+            for width: CGFloat in [460, 760] {
+                capture(AnyView(NotchNetworkSettings(expandAppearance: true, expandBehavior: true).padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))), size: CGSize(width: width, height: 3100),
+                    name: "fixed-settings-\(language)-\(Int(width))", output: output, failures: &failures)
+            }
+            for target in [24.0, 72, 120, 240] {
+                let style = NotchNetworkStyle(fontSize: 12, wingWidth: target, fullUnits: true, decimals: 2,
+                    tint: "direction", alignment: "outside", fixedWidth: true)
+                let wing = max(style.wingWidth, style.fixedMinimumWidth(inBits: true))
+                let samples: [(Double, Double)] = [(0, 0), (1023.99 * 1024, 12), (999.99 * 1024 * 1024, Double(UInt64.max))]
+                let rows = VStack(alignment: .leading, spacing: 16) {
+                    Text(language == "zh-Hans" ? "固定宽度 · 完整单位与两位小数" : "Fixed width · Full units and two decimal places").font(.caption)
+                    ForEach(samples.indices, id: \.self) { index in
+                        let values = samples[index]
+                        HStack(spacing: 0) {
+                            ForEach(0..<2) { side in
+                                let rate = side == 0 ? values.0 : values.1
+                                let reading = NotchNetworkFormat.reading(rate, inBits: true, fullUnits: true, decimals: 2)
+                                let font = style.fittedFontSize(reading: reading, available: wing - 16)
+                                NotchNetworkReadout(bytesPerSecond: rate, upload: side == 1, inBits: true,
+                                    fontSize: font, fullUnits: true, decimals: 2, tint: "direction")
+                                    .fixedSize().frame(width: wing - 16, alignment: side == 0 ? .leading : .trailing)
+                                    .padding(side == 0 ? .leading : .trailing, 16)
+                                if side == 0 { Color.clear.frame(width: 180) }
+                            }
+                        }.frame(height: 32).background(.black, in: Capsule())
+                    }
+                }.padding(20).background(Color(nsColor: .windowBackgroundColor))
+                capture(AnyView(rows), size: CGSize(width: wing * 2 + 220, height: 210),
+                    name: "fixed-readings-\(language)-\(Int(target))", output: output, failures: &failures)
+            }
+            print(failures.isEmpty ? "FIXED NETWORK OK" : "FIXED NETWORK FAILED: " + failures.joined(separator: "; "))
+            exit(failures.isEmpty ? 0 : 1)
+        }
+
         if arguments.contains("--direct-controls-only") {
             var header = NotchHeaderConfiguration()
             header.set(.networkReadout, at: .leftOuter); header.set(.control(.microphone), at: .leftMiddle)

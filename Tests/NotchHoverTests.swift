@@ -90,6 +90,7 @@ enum NotchHoverTests {
         var showsSystemFeedback = true, routesNotices = true
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false
+        var yieldingToMenuBar = false
         var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false

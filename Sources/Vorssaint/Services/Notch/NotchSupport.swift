@@ -2226,8 +2226,13 @@ struct NotchNoticeWings: Equatable {
 struct NotchGeometry: Equatable {
     let screen: CGRect
     var networkStyle = NotchNetworkStyle()
+    var networkInBits = false
     var networkRequiredWidth: CGFloat = 0
-    var resolvedNetworkWidth: CGFloat { max(networkStyle.wingWidth, networkRequiredWidth) }
+    var resolvedNetworkWidth: CGFloat {
+        networkStyle.usesFixedWidth
+            ? max(networkStyle.wingWidth, networkStyle.fixedMinimumWidth(inBits: networkInBits, curveInset: floats ? 8 : 16))
+            : max(networkStyle.wingWidth, networkRequiredWidth)
+    }
     var systemStyle = NotchSystemStyle()
     var pageAppearance = NotchPageAppearance()
     var headerHasCustomButtons = false

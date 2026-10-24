@@ -22,12 +22,16 @@ struct NotchNetworkStyle: Equatable, Codable {
     var arrowGap: CGFloat = 3
     var outerSpacing: CGFloat = 0
     var innerSpacing: CGFloat = 0
+    // Optional so libraries saved before this option remain decodable.
+    var fixedWidth: Bool?
+    var usesFixedWidth: Bool { fixedWidth == true }
 
     init(fontSize: Double = 10, wingWidth: Double = 72, verticalOffset: Double = 0, uploadOnLeft: Bool = false, fullUnits: Bool = false,
          decimals: Int = 1, weight: String = "medium", tint: String = "white", opacity: Double = 0.9,
          alignment: String = "center", arrowGap: Double = 3,
          downloadColor: String = "B3D1FF", uploadColor: String = "73F2FF", colorScope: String = "all",
-         outerSpacing: Double = 0, innerSpacing: Double = 0) {
+         outerSpacing: Double = 0, innerSpacing: Double = 0, fixedWidth: Bool = false) {
+        self.fixedWidth = fixedWidth ? true : nil
         self.fontSize = (Self.clamp(fontSize, 8...18, fallback: 10) * 2).rounded() / 2
         self.outerSpacing = Self.clamp(outerSpacing, 0...24, fallback: 0)
         self.innerSpacing = Self.clamp(innerSpacing, 0...24, fallback: 0)
@@ -65,6 +69,36 @@ struct NotchNetworkStyle: Equatable, Codable {
         let readings = [download, upload].map { NotchNetworkFormat.reading($0, inBits: inBits, fullUnits: fullUnits, decimals: decimals) }
         let text = readings.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
         return ceil(text + max(8, fontSize - 1) + arrowGap + 2 + curveInset + outerSpacing + innerSpacing)
+    }
+
+    /// A fixed silhouette reserves enough for complete readings at a readable
+    /// 8 pt, even at unit boundaries and the sampler's UInt64 counter limit.
+    /// This floor depends on formatting choices, never on live traffic.
+    func fixedMinimumWidth(inBits: Bool = false, curveInset: CGFloat = 16) -> CGFloat {
+        let rates: [Double?] = [nil, 0, 1023.99, 1023.99 * 1024, 999.99 * 1_000_000_000, Double(UInt64.max)]
+        let readings = rates.map {
+            NotchNetworkFormat.reading($0, inBits: inBits, fullUnits: fullUnits, decimals: decimals)
+        }
+        let required = readings.map { measuredWidth(reading: $0, fontSize: 8) }.max() ?? 0
+        return ceil(required + curveInset + outerSpacing + innerSpacing)
+    }
+
+    func measuredWidth(reading: String, fontSize: CGFloat) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize,
+            weight: weight == "bold" ? .bold : weight == "regular" ? .regular : .medium)
+        return ceil((reading as NSString).size(withAttributes: [.font: font]).width)
+            + max(8, fontSize - 1) + arrowGap + 2
+    }
+
+    /// Fit using the space actually proposed by the wing after its curved end
+    /// and user padding. The exact formatted string is retained.
+    func fittedFontSize(reading: String, available: CGFloat) -> CGFloat {
+        guard usesFixedWidth else { return fontSize }
+        var size = fontSize
+        while size > 8 && measuredWidth(reading: reading, fontSize: size) > available {
+            size = max(8, size - 0.25)
+        }
+        return size
     }
 
     func alignment(onLeadingSide leading: Bool) -> String {
@@ -108,7 +142,8 @@ struct NotchNetworkStyle: Equatable, Codable {
              uploadColor: defaults.string(forKey: DefaultsKey.notchNetworkUploadColor) ?? "73F2FF",
              colorScope: defaults.string(forKey: DefaultsKey.notchNetworkColorScope) ?? "all",
              outerSpacing: defaults.double(forKey: DefaultsKey.notchNetworkOuterSpacing),
-             innerSpacing: defaults.double(forKey: DefaultsKey.notchNetworkInnerSpacing))
+             innerSpacing: defaults.double(forKey: DefaultsKey.notchNetworkInnerSpacing),
+             fixedWidth: defaults.bool(forKey: DefaultsKey.notchNetworkFixedWidth))
     }
 }
 
