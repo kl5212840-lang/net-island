@@ -88,6 +88,15 @@ enum NotchTests {
     }
 
     private static func menuYieldAndFixedWidthContracts(_ suite: TestSuite) {
+        for number in [Int.min, -1, 0, 4_294_967_296, Int.max] {
+            suite.expect(NotchMenuYieldEvent.windowID(number) == nil
+                && !NotchMenuYieldEvent.isOwnWindow(number, windows: [1, UInt32.max]),
+                "non-window and 64-bit native event sentinels never trap or match an island window")
+        }
+        suite.expect(NotchMenuYieldEvent.windowID(Int(UInt32.max)) == UInt32.max
+            && NotchMenuYieldEvent.isOwnWindow(123, windows: [123])
+            && !NotchMenuYieldEvent.isOwnWindow(124, windows: [123]),
+            "valid CG window identifiers retain the normal own-window exclusion")
         var state = NotchMenuYieldState()
         state.begin(now: 1)
         suite.expect(state.hidden, "a menu-bar click yields immediately without consuming the click")

@@ -66,7 +66,7 @@ final class NotchMenuYieldMonitor {
             if event.keyCode == 53, state.hidden { state.dismiss(); read(force: true) }
             return
         }
-        if event.windowNumber > 0, layout.ownWindows.contains(CGWindowID(event.windowNumber)) { return }
+        if NotchMenuYieldEvent.isOwnWindow(event.windowNumber, windows: layout.ownWindows) { return }
         let point = NSEvent.mouseLocation
         if layout.bar.contains(point) {
             let blank = snapshot.applicationMenuEnd.map { point.x > $0 + 3 && point.x < layout.island.minX } ?? false

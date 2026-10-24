@@ -28,3 +28,15 @@ struct NotchMenuYieldState {
         if now - (closedSince ?? now) >= 0.25 { self = Self() }
     }
 }
+
+/// NSEvent can use a 64-bit sentinel (including 2^32) for events without
+/// a normal window. Treat that as external; never use a trapping conversion.
+enum NotchMenuYieldEvent {
+    static func windowID(_ number: Int) -> UInt32? {
+        guard let id = UInt32(exactly: number), id > 0 else { return nil }
+        return id
+    }
+    static func isOwnWindow(_ number: Int, windows: Set<UInt32>) -> Bool {
+        windowID(number).map(windows.contains) ?? false
+    }
+}

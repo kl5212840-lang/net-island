@@ -3310,7 +3310,7 @@ final class NotchService: ObservableObject {
         }
         menuYieldMonitor.configure(.init(screen: geometry.screen, barHeight: geometry.menuBarHeight,
             island: geometry.frame(for: surfaceSize),
-            ownWindows: panel.windowNumber > 0 ? islandWindowIDs.union([CGWindowID(panel.windowNumber)]) : islandWindowIDs,
+            ownWindows: islandWindowIDs.union(NotchMenuYieldEvent.windowID(panel.windowNumber).map { [$0] } ?? []),
             primaryTop: NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY))
     }
 
